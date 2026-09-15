@@ -1,0 +1,18 @@
+customer_id,name,contact,email,city,dob,salary,order_date,is_active
+  Rahul  ,+91-98765-43210,,pune,12/05/2001,₹50,0.0,12/05/2026,true
+Amit  ,98abc7654321,,mumbai,2000-04-21,75000,,yes,
+   Neha   ,98765 43210,,pune,15-06-2002,,,1,
+Vikram Sharma,+91 99887 76655,,delhi,May 12 1998,₹62,500.0,May 12 2026,true
+Pooja Nair,8888811111,,,08/23/1995,unknown,,no,
+  Suresh Kumar  ,+91-777-666-5555,,bengaluru,1999-11-30,85000,,false,
+Ananya Roy,9123456780,,kolkata,1997-08-14,92000.50,,yes,
+Rohan Mehta,not-a-number,,mumbai,1996-03-25,₹45,0.0,18-07-2026,true
+Sneha Iyer,,,chennai,05-11-2000,58000,,yes,
+Deepak Joshi,+919811223344,,hyderabad,14/02/1994,,,0,
+Kavita Gupta,98700 12345,,delhi,1995-10-10,67000,,true,
+Manoj Patil,9922334455,,,22/07/1993,₹71,0.0,2026-09-10,yes
+Divya Singh,  9822114477  ,,pune,1998-12-04,49000,,true,
+Kiran Rao,9819922334,,bengaluru,01-01-2002,unknown,,false,
+Rajesh Khanna,+91 97654 32109,,mumbai,1991-05-19,105000,,1,
+Sunita Menon,9811002233,,chennai,30/09/1996,₹53,0.0,2026-09-25,true
+Arjun Kapoor,,,mumbai,1985-06-26,120000,,true,

@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Data Cleaning & Conversion Web App</title>
+  <meta name="description" content="Production-grade automated data cleaning, profiling, type inference, and Apache Parquet export pipeline.">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22><text y=%2226%22 font-size=%2226%22>🧹</text></svg>">
+  <script>
+    (function() {
+      var saved = localStorage.getItem('dataCleanerTheme');
+      if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header class="app-header">
+    <a href="#" class="brand-logo" onclick="App.switchTab('upload')">
+      <div class="logo-icon">🧹</div>
+      <div>
+        <div class="brand-title">DataCleaner Pro</div>
+        <span class="brand-badge">Parquet Engine</span>
+      </div>
+    </a>
+
+    <!-- Header Dataset Quick Stats (shown when dataset loaded) -->
+    <div class="file-info-container" style="display: none;">
+      <div class="header-stats-pill">
+        <div><span style="color: var(--text-dim);">File:</span> <strong class="val-filename" style="color: var(--cyan);">—</strong></div>
+        <div><span style="color: var(--text-dim);">Type:</span> <strong class="val-filetype">—</strong></div>
+        <div><span style="color: var(--text-dim);">Rows:</span> <strong class="val-rows" style="color: var(--emerald);">0</strong></div>
+        <div><span style="color: var(--text-dim);">Cols:</span> <strong class="val-cols">0</strong></div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="btn-theme-toggle" class="btn btn-secondary btn-sm" onclick="App.toggleTheme()" title="Switch Light/Dark Theme">
+        <span id="theme-toggle-icon">🌙</span>
+        <span id="theme-toggle-text">Dark Mode</span>
+      </button>
+
+      <button id="btn-undo" class="btn btn-secondary btn-sm" title="Undo last cleaning operation">
+        <span>↩</span>
+        <span>Undo</span>
+      </button>
+
+      <div class="demo-buttons-group">
+        <button class="btn btn-primary btn-sm btn-demo" data-type="csv" title="Load sample customers dataset">
+          <span>⚡ Load Demo CSV</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Pipeline Stepper Navigation -->
+  <div class="stepper-container">
+    <div class="step-item active" data-step="upload">
+      <div class="step-number">1</div>
+      <span>Upload & Ingest</span>
+    </div>
+    <div class="step-divider"></div>
+
+    <div class="step-item" data-step="preview">
+      <div class="step-number">2</div>
+      <span>Data Preview</span>
+    </div>
+    <div class="step-divider"></div>
+
+    <div class="step-item" data-step="profiling">
+      <div class="step-number">3</div>
+      <span>Profiling & Quality</span>
+    </div>
+    <div class="step-divider"></div>
+
+    <div class="step-item" data-step="cleaning">
+      <div class="step-number">4</div>
+      <span>Cleaning Studio</span>
+    </div>
+    <div class="step-divider"></div>
+
+    <div class="step-item" data-step="summary">
+      <div class="step-number">5</div>
+      <span>Summary & Parquet</span>
+    </div>
+  </div>
+
+  <!-- Main Content Body -->
+  <main class="main-content">
+
+    <!-- TAB 1: UPLOAD & INGEST -->
+    <section id="tab-upload" class="tab-view active">
+      <div class="upload-hero">
+        <h1>Smart Data Cleaning & Conversion</h1>
+        <p>Incorporate intelligent profiling, format-aware deduplication, semantic string sanitization, and export directly to high-performance Apache Parquet.</p>
+
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="file-input" style="display: none;" accept=".csv,.tsv,.txt,.xlsx,.xls,.parquet,.pq,.sql">
+          <div class="drop-icon">📂</div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">Drag and drop your dataset file here</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">or click to browse from your computer</p>
+
+          <div class="format-pills">
+            <span class="format-pill">.CSV</span>
+            <span class="format-pill">.XLSX</span>
+            <span class="format-pill">.XLS</span>
+            <span class="format-pill">.PARQUET</span>
+            <span class="format-pill">.SQL</span>
+          </div>
+        </div>
+
+        <div class="demo-datasets-box glass-panel">
+          <div>
+            <div style="font-weight: 700; font-size: 0.95rem;">Want to test immediately?</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Load pre-configured dirty test datasets with messy contacts, dates, emails, and currency symbols:</div>
+          </div>
+            <button class="btn btn-secondary btn-sm btn-demo" data-type="names">
+              <span>👤 Messy Names (User Image Data)</span>
+            </button>
+            <button class="btn btn-secondary btn-sm btn-demo" data-type="csv">
+              <span>📄 Messy Customers (CSV)</span>
+            </button>
+            <button class="btn btn-secondary btn-sm btn-demo" data-type="excel">
+              <span>📊 Multi-Sheet Ecommerce (Excel)</span>
+            </button>
+            <button class="btn btn-secondary btn-sm btn-demo" data-type="sql">
+              <span>🗄️ Database Dump (SQL)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DATA PREVIEW -->
+    <section id="tab-preview" class="tab-view">
+      <!-- File Info Bar -->
+      <div class="file-info-bar glass-panel">
+        <div class="file-info-details">
+          <div class="file-meta-item">
+            <span class="file-meta-label">File Name</span>
+            <span class="file-meta-value val-filename" style="color: var(--cyan);">—</span>
+          </div>
+          <div class="file-meta-item">
+            <span class="file-meta-label">File Type</span>
+            <span class="file-meta-value val-filetype">—</span>
+          </div>
+          <div class="file-meta-item">
+            <span class="file-meta-label">File Size</span>
+            <span class="file-meta-value val-filesize">—</span>
+          </div>
+          <div class="file-meta-item">
+            <span class="file-meta-label">Rows</span>
+            <span class="file-meta-value val-rows" style="color: var(--emerald);">0</span>
+          </div>
+          <div class="file-meta-item">
+            <span class="file-meta-label">Columns</span>
+            <span class="file-meta-value val-cols">0</span>
+          </div>
+        </div>
+
+        <!-- Excel / SQL Sheet Selector -->
+        <div id="sheet-selector-container" class="sheet-selector-group" style="display: none;">
+          <span class="file-meta-label">Active Sheet:</span>
+          <select id="sheet-select" class="select-dropdown"></select>
+        </div>
+      </div>
+
+      <!-- Preview Table Container -->
+      <div class="glass-panel" style="overflow: hidden;">
+        <div class="table-toolbar">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="preview-search" placeholder="Search rows across dataset...">
+          </div>
+
+          <div id="preview-count-label" style="font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+            Showing rows...
+          </div>
+
+          <div class="pagination-group">
+            <button id="btn-prev-page" class="btn btn-secondary btn-sm">◀ Prev</button>
+            <span id="current-page-text" class="page-indicator">Page 1 of 1</span>
+            <button id="btn-next-page" class="btn btn-secondary btn-sm">Next ▶</button>
+          </div>
+        </div>
+
+        <div id="preview-table-container" class="table-container">
+          <!-- Dynamic Table Injected Here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PROFILING & QUALITY -->
+    <section id="tab-profiling" class="tab-view">
+      <!-- Quick Clean Action Command Bar -->
+      <div class="profiling-action-bar glass-panel">
+        <div class="profiling-action-bar-left">
+          <div class="action-bar-badge">⚡ Quick Actions</div>
+          <div class="action-bar-title">Clean Your Dataset Directly from Profiling</div>
+          <div class="action-bar-sub">Execute 1-click automatic fixes or clean issues column-by-column without navigating away.</div>
+        </div>
+        <div class="profiling-action-bar-right">
+          <button id="btn-reset-raw" class="btn btn-secondary btn-sm" onclick="App.handleResetDataset()" title="Revert all changes back to raw dataset">
+            <span>↺</span>
+            <span>Reset to Raw</span>
+          </button>
+          <button id="btn-auto-clean-options" class="btn btn-secondary btn-sm" onclick="App.openAutoCleanModal()" title="Customize which issues to clean">
+            <span>⚙️ Options</span>
+          </button>
+          <button id="btn-auto-clean" class="btn btn-emerald btn-sm pulse-glow" onclick="App.handleAutoClean()" title="Clean all duplicates, text whitespace, email typos, contacts, dates, and nulls in 1-click">
+            <span>⚡ 1-Click Auto Clean All</span>
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="App.switchTab('cleaning')">
+            <span>Cleaning Studio ➔</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Top Metrics Overview -->
+      <div class="metrics-grid">
+        <div class="metric-card glass-panel">
+          <div class="metric-header">
+            <span class="metric-title">Data Quality Score</span>
+            <span id="badge-quality-grade" class="score-badge emerald">Grade</span>
+          </div>
+          <div id="val-quality-score" class="metric-value" style="color: var(--cyan);">0%</div>
+          <div class="metric-sub">Weighted completeness, uniqueness & types</div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-header">
+            <span class="metric-title">Total Rows</span>
+            <span class="metric-icon">📑</span>
+          </div>
+          <div id="metric-total-rows" class="metric-value">0</div>
+          <div class="metric-sub">Ingested records</div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-header">
+            <span class="metric-title">Total Columns</span>
+            <span class="metric-icon">📊</span>
+          </div>
+          <div id="metric-total-cols" class="metric-value">0</div>
+          <div class="metric-sub">Dataset schema attributes</div>
+        </div>
+
+        <div class="metric-card glass-panel alert">
+          <div class="metric-header">
+            <span class="metric-title">Null / Missing Cells</span>
+            <span class="metric-icon">⚠️</span>
+          </div>
+          <div id="metric-null-cells" class="metric-value" style="color: var(--rose);">0</div>
+          <div class="metric-sub">Across all attributes</div>
+          <div class="metric-card-footer" style="margin-top: 0.75rem;">
+            <button class="btn btn-secondary btn-xs" onclick="App.openQuickNullsModal('')" title="Handle null values across all or selected columns">
+              <span>⭕ Quick Fix Nulls</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel alert">
+          <div class="metric-header">
+            <span class="metric-title">Duplicate Rows</span>
+            <span class="metric-icon">👥</span>
+          </div>
+          <div id="metric-dup-rows" class="metric-value" style="color: var(--amber);">0</div>
+          <div class="metric-sub">Redundant identical rows</div>
+          <div class="metric-card-footer" style="margin-top: 0.75rem;">
+            <button class="btn btn-danger btn-xs" onclick="App.executeCleanDuplicates()" title="Remove duplicate rows immediately">
+              <span>🧹 Clean Duplicates</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-header">
+            <span class="metric-title">Columns With Issues</span>
+            <span class="metric-icon">🛠️</span>
+          </div>
+          <div id="metric-issues-count" class="metric-value">0</div>
+          <div class="metric-sub">Requiring cleaning or fixes</div>
+          <div class="metric-card-footer" style="margin-top: 0.75rem;">
+            <button class="btn btn-primary btn-xs" onclick="App.handleAutoClean()" title="Auto-fix all detected column issues">
+              <span>⚡ Fix All Issues</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column Profiling Grid -->
+      <div class="profiling-section">
+        <div class="section-title-group">
+          <div class="section-title">
+            <span>🔬</span>
+            <span>Column Attributes & Semantic Profiling</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-emerald btn-sm" onclick="App.handleAutoClean()">
+              <span>⚡ 1-Click Clean All</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="App.switchTab('cleaning')">
+              <span>Advanced Studio ➔</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="profiling-columns-grid" class="columns-grid">
+          <!-- Dynamically Rendered Column Cards -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CLEANING STUDIO -->
+    <section id="tab-cleaning" class="tab-view">
+      <div class="section-title-group">
+        <div>
+          <div class="section-title">
+            <span>🛠️</span>
+            <span>Interactive Data Cleaning Studio</span>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">
+            Targeted cleaning tools configured to execute precise sanitizations with user control.
+          </p>
+        </div>
+
+        <button class="btn btn-emerald" onclick="App.switchTab('summary')">
+          <span>View Cleaning Summary & Export ➔</span>
+        </button>
+      </div>
+
+      <div class="cleaning-grid">
+
+        <!-- 0. Name Sanitizer (Alphabets Only) -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">👤</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Name Sanitizer (Alphabets Only)</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Strips special characters (/White ➔ White, ...Potter ➔ Potter, Flenderson_ ➔ Flenderson), digits & noise</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Name Column</label>
+            <select id="clean-name-col" class="form-control"></select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="name-alphabets-only" checked>
+              <span>Keep alphabets only (strip all symbols: /, ..., _, @, #, !, numbers)</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="name-allow-spaces" checked>
+              <span>Preserve single space between multi-word names</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Casing Format</label>
+            <select id="name-casing" class="form-control">
+              <option value="title" selected>Title Case (e.g. Potter, White)</option>
+              <option value="upper">UPPERCASE (e.g. POTTER, WHITE)</option>
+              <option value="lower">lowercase (e.g. potter, white)</option>
+              <option value="">Keep Existing Casing</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary" onclick="App.executeCleanNames()">
+            <span>Sanitize Name Column</span>
+          </button>
+        </div>
+
+        <!-- 1. Contact / Phone Number Cleaner -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">📞</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Contact / Phone Cleaner</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Strips non-digits [^0-9] and normalizes phone numbers</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Column</label>
+            <select id="clean-contact-col" class="form-control"></select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="contact-strip-digits" checked>
+              <span>Strip non-digit symbols (dashes, parentheses, spaces)</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="contact-norm-10" checked>
+              <span>Normalize to 10-digit number (strip country code prefix)</span>
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group">
+              <label class="form-label">Country Code</label>
+              <input type="text" id="contact-country-code" class="form-control" value="91">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Format Style</label>
+              <select id="contact-format-style" class="form-control">
+                <option value="digits_only">Digits Only (9876543210)</option>
+                <option value="hyphenated">Hyphenated (98765-43210)</option>
+                <option value="international">International (+91 98765 43210)</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="App.executeCleanContact()">
+            <span>Clean Contact Numbers</span>
+          </button>
+        </div>
+
+        <!-- 2. Email Cleaning Engine -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">✉️</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Email Sanitizer & Typo Fixer</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Casing normalization, inner space removal, domain typo repairs</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Column</label>
+            <select id="clean-email-col" class="form-control"></select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="email-lowercase" checked>
+              <span>Convert email to lowercase</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="email-trim" checked>
+              <span>Trim leading & trailing whitespace</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="email-inner-spaces" checked>
+              <span>Remove accidental inner spaces</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="email-fix-typos" checked>
+              <span>Fix domain typos (@gmai.com, @yaho.com, @hotmial.com)</span>
+            </label>
+          </div>
+
+          <button class="btn btn-primary" onclick="App.executeCleanEmail()">
+            <span>Clean Email Column</span>
+          </button>
+        </div>
+
+        <!-- 3. Date Formatting Engine -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">📅</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Date Standardization</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Standardizes heterogeneous date formats into uniform ISO</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Column</label>
+            <select id="clean-date-col" class="form-control"></select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group">
+              <label class="form-label">Input Format</label>
+              <select id="date-in-format" class="form-control">
+                <option value="">Auto Detect</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Output Format</label>
+              <select id="date-out-format" class="form-control">
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="DD Mon YYYY">DD Mon YYYY</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="date-day-first" checked>
+              <span>Day first for ambiguous dates (e.g. 12/05 = May 12th)</span>
+            </label>
+          </div>
+
+          <button class="btn btn-primary" onclick="App.executeCleanDate()">
+            <span>Standardize Dates</span>
+          </button>
+        </div>
+
+        <!-- 4. General String Cleaner -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">🔤</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">General String Cleaner</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Trims whitespace, collapses spaces, transforms casing</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Column</label>
+            <select id="clean-string-col" class="form-control">
+              <option value="">All String Columns</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="str-trim-ws" checked>
+              <span>Trim leading & trailing whitespace</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="str-collapse-sp" checked>
+              <span>Collapse multiple consecutive spaces</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="str-empty-to-null" checked>
+              <span>Convert empty & whitespace-only strings to Null (NaN)</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Casing Transformation</label>
+            <select id="str-case" class="form-control">
+              <option value="">Keep Existing Casing</option>
+              <option value="title">Title Case (e.g. Rahul Sharma)</option>
+              <option value="lower">Lowercase (e.g. rahul sharma)</option>
+              <option value="upper">Uppercase (e.g. RAHUL SHARMA)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="App.executeCleanStrings()">
+              <span>Clean String Columns</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="App.executeConvertEmptyStringsToNull(document.getElementById('clean-string-col').value || null)" title="Convert empty & whitespace strings to Null (NaN)">
+              <span>⚡ Replace Empty with Null</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5. Null Value Treatment -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">⭕</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Null Value Handling</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Impute, replace with placeholders, or drop null records</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Target Column</label>
+            <select id="clean-null-col" class="form-control" onchange="App.onCleanNullColChange(this.value)">
+              <option value="">All Columns</option>
+            </select>
+            <div id="clean-null-col-info" class="text-xs mt-1" style="color: var(--text-muted);"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Action / Strategy</label>
+            <select id="null-strategy" class="form-control">
+              <option value="replace">Replace with Custom Value / Placeholder</option>
+              <option value="remove_rows">Remove Rows Containing Nulls</option>
+              <option value="mean">Impute with Mean (Numeric Columns)</option>
+              <option value="median">Impute with Median (Numeric Columns)</option>
+              <option value="mode">Impute with Mode (Most Frequent Value)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="clean-null-treat-empty" checked>
+              <span>Treat empty strings ("") as Null</span>
+            </label>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="App.executeCleanNulls()">
+              <span>Apply Null Treatment</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="App.executeConvertEmptyStringsToNull(document.getElementById('clean-null-col').value || null)" title="Detect and convert empty/whitespace strings to Null">
+              <span>⚡ Empty Strings ➔ Null</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6. Duplicate Detection & Deduplication -->
+        <div class="clean-tool-card glass-panel">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">👥</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Duplicate Row Handling</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Inspect identical rows and deduplicate safely</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Retention Strategy</label>
+            <select id="clean-dup-keep" class="form-control">
+              <option value="first">Keep First Occurrence (Drop Later Copies)</option>
+              <option value="last">Keep Last Occurrence</option>
+            </select>
+          </div>
+
+          <p style="font-size: 0.78rem; color: var(--text-dim);">
+            Duplicates are not removed automatically. Inspect them first or execute deduplication when ready.
+          </p>
+
+          <div style="display: flex; gap: 0.75rem; margin-top: auto;">
+            <button class="btn btn-secondary" style="flex: 1;" onclick="App.viewDuplicates()">
+              <span>View Duplicates</span>
+            </button>
+            <button class="btn btn-danger" style="flex: 1;" onclick="App.executeCleanDuplicates()">
+              <span>Remove Duplicates</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 7. Data Type Conversion with Problematic Inspection -->
+        <div class="clean-tool-card glass-panel" style="grid-column: 1 / -1;">
+          <div class="clean-tool-header">
+            <div class="clean-tool-icon">🔄</div>
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Data Type Conversion & Non-Convertible Value Reporter</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">
+                Converts types safely and flags problematic values (e.g. ₹50,000, N/A, unknown) before applying changes.
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: flex-end;">
+            <div class="form-group">
+              <label class="form-label">Select Column</label>
+              <select id="convert-col" class="form-control"></select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Target Data Type</label>
+              <select id="convert-target-type" class="form-control">
+                <option value="Float">Float (Decimal Number)</option>
+                <option value="Integer">Integer (Whole Number)</option>
+                <option value="Date">Date (YYYY-MM-DD)</option>
+                <option value="Boolean">Boolean (True/False)</option>
+                <option value="String">String (Text)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="convert-clean-curr" checked>
+                <span>Strip currency signs (₹, $, €, £) & commas</span>
+              </label>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary" onclick="App.executeConvertType(false)">
+                <span>Inspect Values</span>
+              </button>
+              <button class="btn btn-primary" onclick="App.executeConvertType(true)">
+                <span>Apply Conversion</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Report box for problematic values -->
+          <div id="convert-report-box" style="display: none; margin-top: 1rem;"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 5: SUMMARY & PARQUET EXPORT -->
+    <section id="tab-summary" class="tab-view">
+      <div class="summary-container">
+
+        <!-- Before vs After Summary Card -->
+        <div class="glass-panel" style="padding: 1.5rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div style="font-size: 1.15rem; font-weight: 700;">Cleaning Summary</div>
+            <span class="stat-diff-badge success">Audit Verified</span>
+          </div>
+
+          <div class="summary-stat-row">
+            <span>Duplicate Rows Removed:</span>
+            <strong id="sum-dup-removed" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Null Values Handled:</span>
+            <strong id="sum-null-handled" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Whitespace Issues Fixed:</span>
+            <strong id="sum-ws-fixed" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Name Values Sanitized:</span>
+            <strong id="sum-names-cleaned" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Contact Values Cleaned:</span>
+            <strong id="sum-contact-cleaned" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Email Values Cleaned:</span>
+            <strong id="sum-email-cleaned" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Date Values Converted:</span>
+            <strong id="sum-dates-converted" class="stat-diff-badge success">0</strong>
+          </div>
+          <div class="summary-stat-row">
+            <span>Data Types Fixed:</span>
+            <strong id="sum-types-fixed" class="stat-diff-badge success">0</strong>
+          </div>
+
+          <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 2px solid var(--border-subtle); display: flex; justify-content: space-between; font-size: 1rem;">
+            <div>
+              <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Rows Before</div>
+              <div id="sum-rows-before" style="font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 1.3rem;">0</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">Rows After</div>
+              <div id="sum-rows-after" style="font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; color: var(--emerald);">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Export Center & Audit Log -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+          <!-- Export Card -->
+          <div class="glass-panel" style="padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.08)); border-color: rgba(16, 185, 129, 0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+              <div style="font-size: 1.15rem; font-weight: 800;">Cleaned Dataset Ready</div>
+              <span id="export-rows-badge" class="stat-diff-badge success">0 Rows</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+              Export your cleaned dataset in high-performance columnar Apache Parquet with snappy compression, ready for big data analytics, DuckDB, or cloud data warehouses.
+            </p>
+
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <a id="btn-export-parquet" href="#" class="btn btn-emerald" style="flex: 1;">
+                <span>⬇ Download Parquet</span>
+              </a>
+              <a id="btn-export-csv" href="#" class="btn btn-secondary">
+                <span>⬇ Download CSV</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Audit Timeline Card -->
+          <div class="glass-panel" style="padding: 1.5rem; flex: 1;">
+            <div style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem;">Action History & Audit Trail</div>
+            <div id="audit-timeline-container" class="audit-timeline">
+              <!-- Chronological action items -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Duplicates Inspection Modal -->
+  <div id="modal-duplicates" class="modal-overlay">
+    <div class="modal-card" style="max-width: 800px;">
+      <div class="modal-header">
+        <div class="modal-title">Duplicate Rows Inspection</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="duplicates-table-container"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Close</button>
+        <button class="btn btn-danger" onclick="App.closeAllModals(); App.executeCleanDuplicates();">Remove These Duplicates</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-Click Auto Clean Options Modal -->
+  <div id="modal-auto-clean" class="modal-overlay">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title">⚡ 1-Click Auto-Clean Configuration</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+          Select which automated sanitization and cleaning steps to apply across your dataset:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-dups" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Deduplication</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Drop identical redundant rows (keeps first occurrence)</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-strings" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Clean Text Whitespace</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Trim leading/trailing spaces and collapse repeated internal spaces</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-names" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Sanitize Name Columns (Alphabets Only)</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Strip all special characters (/White ➔ White, ...Potter ➔ Potter, Flenderson_ ➔ Flenderson), digits, and apply Title Case</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-emails" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Sanitize Email Addresses</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Lowercase, remove accidental spaces, repair typo domains (@gmai, @yaho)</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-contacts" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Normalize Phone & Contact Numbers</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Strip non-digit symbols and normalize to clean standard digits</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-dates" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Standardize Dates to ISO (YYYY-MM-DD)</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Detect heterogeneous date formats and unify into uniform ISO dates</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-types" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Convert Numeric Strings & Currency</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Strip currency symbols (₹, $, €) and convert text columns to numeric</div>
+            </div>
+          </label>
+
+          <label class="checkbox-label" style="background: rgba(255,255,255,0.02); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <input type="checkbox" id="ac-nulls" checked>
+            <div>
+              <div style="font-weight: 600; font-size: 0.9rem;">Safely Impute Null Values</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">Impute numeric nulls with median and text nulls with 'Unknown'</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-emerald" onclick="App.executeAutoCleanFromModal()">
+          <span>⚡ Run Auto Clean Now</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto Clean Results Summary Modal -->
+  <div id="modal-auto-clean-summary" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <div class="modal-title" style="color: var(--emerald);">✨ Auto-Clean Completed Successfully!</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="score-improvement-banner glass-panel" style="display: flex; align-items: center; justify-content: space-around; padding: 1.25rem; margin-bottom: 1.25rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.12)); border-color: rgba(16, 185, 129, 0.3);">
+          <div style="text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Initial Quality</div>
+            <div id="ac-score-before" style="font-size: 1.5rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">0%</div>
+          </div>
+          <div style="font-size: 1.5rem; color: var(--emerald);">➔</div>
+          <div style="text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Updated Quality</div>
+            <div id="ac-score-after" style="font-size: 1.8rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--emerald);">100%</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Grade</div>
+            <span id="ac-grade-badge" class="score-badge emerald">Grade A+</span>
+          </div>
+        </div>
+
+        <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem;">Modifications Applied:</div>
+        <div id="ac-changes-list" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
+          <!-- Injected items -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Close</button>
+        <button class="btn btn-primary" onclick="App.closeAllModals(); App.loadProfiling();">
+          <span>View Updated Profiling ➔</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-Page Quick Null Treatment Modal -->
+  <div id="modal-quick-nulls" class="modal-overlay">
+    <div class="modal-card" style="max-width: 550px;">
+      <div class="modal-header">
+        <div class="modal-title">⭕ Quick Null Value Treatment</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Live summary alert banner -->
+        <div id="quick-null-summary-banner" class="null-summary-banner" style="display: none;"></div>
+
+        <div class="form-group">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Target Column</span>
+            <span id="quick-null-col-badge" class="badge-subtle" style="font-size: 0.72rem; color: var(--text-muted);"></span>
+          </label>
+          <select id="quick-null-col" class="form-control" onchange="App.onQuickNullColChange(this.value)">
+            <option value="">All Applicable Columns</option>
+          </select>
+
+          <!-- Quick click chips for columns with nulls -->
+          <div id="quick-null-chips-wrapper" style="margin-top: 0.6rem; display: none;">
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.35rem; font-weight: 500;">
+              Click to select column with null values:
+            </div>
+            <div id="quick-null-col-chips" class="null-chips-container"></div>
+          </div>
+        </div>
+
+        <!-- Detail info box about the selected column -->
+        <div id="quick-null-selected-info" class="null-selected-info"></div>
+
+        <div class="form-group">
+          <label class="form-label">Handling Strategy</label>
+          <select id="quick-null-strategy" class="form-control" onchange="App.onQuickNullStrategyChange(this.value)">
+            <option value="replace">Replace with Custom Value / Placeholder</option>
+            <option value="median">Impute with Median (Numeric Columns)</option>
+            <option value="mean">Impute with Mean (Numeric Columns)</option>
+            <option value="mode">Impute with Mode (Most Frequent)</option>
+            <option value="remove_rows">Drop Rows Containing Nulls</option>
+            <option value="ffill">Forward Fill (ffill)</option>
+            <option value="bfill">Backward Fill (bfill)</option>
+          </select>
+        </div>
+
+        <div id="quick-null-custom-value-group" class="form-group">
+          <label class="form-label">Replacement Value</label>
+          <input type="text" id="quick-null-custom-value" class="form-control" value="Unknown">
+        </div>
+
+        <div class="form-group" style="margin-top: -0.25rem;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="quick-null-treat-empty" checked>
+            <span>Treat empty and whitespace-only strings ("") as Null</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-secondary btn-sm" onclick="App.executeConvertEmptyStringsToNull(document.getElementById('quick-null-col').value || null)" title="Directly convert all empty/blank strings to Null without applying another strategy">
+          <span>⚡ Convert Empty ➔ Null</span>
+        </button>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn btn-secondary modal-cancel">Cancel</button>
+          <button class="btn btn-primary" onclick="App.executeQuickNulls()">
+            <span>Apply Null Treatment</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-Page Quick Type Conversion Modal -->
+  <div id="modal-quick-convert" class="modal-overlay">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title">🔄 Quick Data Type Conversion</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Target Column</label>
+          <select id="quick-convert-col" class="form-control"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Convert To Target Type</label>
+          <select id="quick-convert-target" class="form-control">
+            <option value="Float">Float (Decimal Number)</option>
+            <option value="Integer">Integer (Whole Number)</option>
+            <option value="Date">Date (YYYY-MM-DD)</option>
+            <option value="Boolean">Boolean (True/False)</option>
+            <option value="String">String (Text)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="quick-convert-clean-curr" checked>
+            <span>Strip currency signs (₹, $, €, £) and thousand separators</span>
+          </label>
+        </div>
+
+        <div id="quick-convert-report-box" style="display: none; margin-top: 0.75rem;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-secondary" onclick="App.inspectQuickConvert()">
+          <span>Inspect Values</span>
+        </button>
+        <button class="btn btn-primary" onclick="App.executeQuickConvert()">
+          <span>Apply Conversion</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Reset Modal -->
+  <div id="modal-confirm-reset" class="modal-overlay">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title">↺ Reset Dataset to Raw</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          Are you sure you want to reset this dataset back to its original ingested state?
+        </p>
+        <p style="color: var(--amber); font-size: 0.8rem; margin-top: 0.5rem;">
+          ⚠️ All cleaning modifications, type conversions, and deduplications will be reverted. (You can still use Undo afterwards if needed).
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-danger" onclick="App.executeResetDataset()">
+          <span>Yes, Reset to Raw</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- JavaScript Scripts -->
+  <script src="/static/js/api.js?v=3.0"></script>
+  <script src="/static/js/app.js?v=3.0"></script>
+</body>
+</html>
