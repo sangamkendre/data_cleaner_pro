@@ -713,7 +713,14 @@ const App = {
 
       data.sample_duplicates.forEach(row => {
         html += `<tr>`;
-        cols.forEach(c => html += `<td>${this.escapeHtml(String(row[c]))}</td>`);
+        cols.forEach(c => {
+          const val = row[c];
+          if (val === null || val === undefined) {
+            html += `<td class="null-cell">null</td>`;
+          } else {
+            html += `<td>${this.escapeHtml(String(val))}</td>`;
+          }
+        });
         html += `</tr>`;
       });
       html += `</tbody></table></div>`;

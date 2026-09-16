@@ -26,8 +26,15 @@ def analyze_duplicates(df: pd.DataFrame, subset: List[str] = None) -> Dict[str, 
     sample_df = df[dup_mask].head(50)
     sample_records = []
     for idx, row in sample_df.iterrows():
-        record = row.to_dict()
-        record["_row_index"] = int(idx)
+        record = {"_row_index": int(idx)}
+        for col in df.columns:
+            val = row[col]
+            if pd.isna(val):
+                record[col] = None
+            elif hasattr(val, "isoformat"):
+                record[col] = val.isoformat()
+            else:
+                record[col] = val
         sample_records.append(record)
 
     return {

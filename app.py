@@ -34,7 +34,35 @@ SAMPLE_DIR = os.path.join(BASE_DIR, "sample_data")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
+import math
+import numpy as np
+from flask.json.provider import DefaultJSONProvider
+
+def sanitize_for_json(obj):
+    """Recursively converts NaN, Infinity, -Infinity, and pd.NA into None for valid JSON."""
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if obj is pd.NA:
+        return None
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_for_json(v) for v in obj]
+    if isinstance(obj, (np.floating, np.integer)):
+        val = obj.item()
+        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            return None
+        return val
+    if isinstance(obj, np.ndarray):
+        return sanitize_for_json(obj.tolist())
+    return obj
+
+class SafeJSONProvider(DefaultJSONProvider):
+    def dumps(self, obj, **kwargs):
+        return super().dumps(sanitize_for_json(obj), **kwargs)
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.json = SafeJSONProvider(app)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB max upload
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
