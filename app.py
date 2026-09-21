@@ -63,8 +63,25 @@ class SafeJSONProvider(DefaultJSONProvider):
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.json = SafeJSONProvider(app)
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB max upload
+app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024  # 250 MB max upload
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File is too large to process. Maximum upload size is 250 MB."}), 413
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return jsonify({"error": f"Internal server error: {str(error)}"}), 500
+
+
+@app.errorhandler(404)
+def not_found_error(error):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "API endpoint or session resource not found."}), 404
+    return error
 
 
 @app.route("/")

@@ -15,8 +15,7 @@ def detect_column_types(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
     for col in df.columns:
         series = df[col]
-        non_null = series.dropna().astype(str).str.strip()
-        non_null_count = len(non_null)
+        non_null_count = int(series.count())
         raw_dtype = str(series.dtype)
 
         # Baseline detected type
@@ -36,10 +35,10 @@ def detect_column_types(df: pd.DataFrame) -> List[Dict[str, Any]]:
         elif "datetime" in raw_dtype.lower():
             detected_type = "Date"
         else:
-            # It's an object / string column. Check semantic content!
+            # It's an object / string column. Check semantic content on sample!
             if non_null_count > 0:
-                sample = non_null.head(100)
-                raw_sample = series.dropna().astype(str).head(100)
+                raw_sample = series.dropna().head(100).astype(str)
+                sample = raw_sample.str.strip()
                 has_whitespace = any(s != s.strip() or "  " in s for s in raw_sample)
                 col_name_lower = str(col).lower()
 

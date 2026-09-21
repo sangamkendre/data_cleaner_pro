@@ -1,6 +1,29 @@
-/**
- * REST API Client for Smart Data Cleaner & Conversion Web App
- */
+async function parseResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (e) {
+      return { error: 'Failed to parse server response as JSON.' };
+    }
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    if (res.status === 413) {
+      return { error: 'File is too large for the server. (Limit: 250 MB)' };
+    }
+    if (res.status === 504 || res.status === 502) {
+      return { error: 'The server timed out while processing this heavy dataset.' };
+    }
+    const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+    return { error: `Server error (${res.status}): ${cleanText.slice(0, 160) || 'Unknown error'}` };
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { error: text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) || 'Unexpected server response.' };
+  }
+}
 
 const API = {
   async uploadFile(formData) {
@@ -8,7 +31,7 @@ const API = {
       method: 'POST',
       body: formData,
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async loadDemo(demoType = 'csv') {
@@ -24,7 +47,7 @@ const API = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, sheet_name: sheetName }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async getPreview(sessionId, page = 1, pageSize = 50, search = '', sortCol = null, sortDir = 'asc') {
@@ -38,17 +61,17 @@ const API = {
     if (sortCol) params.append('sort_col', sortCol);
 
     const res = await fetch(`/api/preview?${params.toString()}`);
-    return res.json();
+    return parseResponse(res);
   },
 
   async getProfile(sessionId) {
     const res = await fetch(`/api/profile?session_id=${sessionId}`);
-    return res.json();
+    return parseResponse(res);
   },
 
   async getDuplicates(sessionId) {
     const res = await fetch(`/api/duplicates?session_id=${sessionId}`);
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanDuplicates(sessionId, subset = null, keep = 'first') {
@@ -57,7 +80,7 @@ const API = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, subset, keep }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanNulls(sessionId, column, strategy, fillValue = 'Unknown', treatEmptyAsNull = true) {
@@ -72,7 +95,7 @@ const API = {
         treat_empty_as_null: treatEmptyAsNull,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanEmptyStrings(sessionId, column = null, includeWhitespace = true, includePlaceholders = true) {
@@ -86,7 +109,7 @@ const API = {
         include_placeholders: includePlaceholders,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanStrings(sessionId, { column = null, trim_whitespace = true, remove_extra_spaces = true, case_transform = null, remove_special_chars = false, empty_to_null = true }) {
@@ -103,7 +126,7 @@ const API = {
         empty_to_null,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanNames(sessionId, { column = null, alphabets_only = true, case_transform = 'title', allow_spaces = true }) {
@@ -118,7 +141,7 @@ const API = {
         allow_spaces,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanContact(sessionId, { column, strip_non_digits = true, normalize_10_digits = false, format_style = 'digits_only', country_code = '91' }) {
@@ -134,7 +157,7 @@ const API = {
         country_code,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanEmail(sessionId, { column, lowercase = true, trim_spaces = true, remove_inner_spaces = true, fix_domain_typos = true }) {
@@ -150,7 +173,7 @@ const API = {
         fix_domain_typos,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async cleanDate(sessionId, { column, input_format = null, output_format = 'YYYY-MM-DD', day_first = true }) {
@@ -165,7 +188,7 @@ const API = {
         day_first,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async convertType(sessionId, { column, target_type, apply_fix = false, clean_currency_symbols = true, fill_unconvertible = null }) {
@@ -181,7 +204,7 @@ const API = {
         fill_unconvertible,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async undoAction(sessionId) {
@@ -190,7 +213,7 @@ const API = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async autoClean(sessionId, options = {}) {
@@ -202,7 +225,7 @@ const API = {
         ...options,
       }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async resetDataset(sessionId) {
@@ -211,11 +234,11 @@ const API = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
     });
-    return res.json();
+    return parseResponse(res);
   },
 
   async getSummary(sessionId) {
     const res = await fetch(`/api/summary?session_id=${sessionId}`);
-    return res.json();
+    return parseResponse(res);
   },
 };
