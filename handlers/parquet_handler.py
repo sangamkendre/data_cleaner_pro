@@ -18,9 +18,24 @@ class ParquetHandler(BaseHandler):
 
     def read(self, file_path: str, **kwargs) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         try:
-            df = pd.read_parquet(file_path)
-        except Exception:
-            df = pd.read_parquet(file_path, engine="fastparquet")
+            # Prefer pyarrow for broadest feature and compression support
+            df = pd.read_parquet(file_path, engine="pyarrow")
+        except ImportError:
+            # Fallback to fastparquet if pyarrow is not installed
+            try:
+                df = pd.read_parquet(file_path, engine="fastparquet")
+            except ImportError:
+                raise ImportError(
+                    "Reading Parquet files requires 'pyarrow' or 'fastparquet'. "
+                    "Please install pyarrow via: pip install pyarrow"
+                )
+        except Exception as pyarrow_err:
+            # Try fastparquet as secondary fallback in case of engine incompatibility
+            try:
+                df = pd.read_parquet(file_path, engine="fastparquet")
+            except Exception:
+                # Re-raise the primary pyarrow error if both fail
+                raise pyarrow_err
 
         metadata = {
             "format": "Parquet",

@@ -30,10 +30,21 @@ def export_to_parquet(
         df_export.loc[mask, col] = df_export.loc[mask, col].astype(str)
 
     try:
-        df_export.to_parquet(output_path, compression=compression, index=False)
-    except Exception:
-        # Fallback with fastparquet or auto
-        df_export.to_parquet(output_path, engine="fastparquet", compression=compression, index=False)
+        df_export.to_parquet(output_path, engine="pyarrow", compression=compression, index=False)
+    except ImportError:
+        try:
+            df_export.to_parquet(output_path, engine="fastparquet", compression=compression, index=False)
+        except ImportError:
+            raise ImportError(
+                "Exporting to Parquet requires 'pyarrow' or 'fastparquet'. "
+                "Please install pyarrow via: pip install pyarrow"
+            )
+    except Exception as pyarrow_err:
+        # Fallback with fastparquet
+        try:
+            df_export.to_parquet(output_path, engine="fastparquet", compression=compression, index=False)
+        except Exception:
+            raise pyarrow_err
 
     file_size_bytes = os.path.getsize(output_path)
 

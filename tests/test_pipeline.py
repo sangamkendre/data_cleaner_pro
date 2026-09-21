@@ -135,6 +135,25 @@ class TestDataCleanerPipeline(unittest.TestCase):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    def test_parquet_handler_read(self):
+        df = pd.DataFrame({"id": [10, 20, 30], "item": ["apple", "banana", "cherry"]})
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            df.to_parquet(tmp_path)
+            handler = ParquetHandler()
+            self.assertTrue(handler.can_handle("data.parquet"))
+            self.assertTrue(handler.can_handle("data.pq"))
+            read_df, meta = handler.read(tmp_path)
+            self.assertEqual(meta["format"], "Parquet")
+            self.assertEqual(meta["rows"], 3)
+            self.assertEqual(meta["columns"], 2)
+            self.assertEqual(list(read_df["item"]), ["apple", "banana", "cherry"])
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
     def test_session_reset_to_raw(self):
         from session_manager import DatasetSession
         session = DatasetSession("test_reset")
