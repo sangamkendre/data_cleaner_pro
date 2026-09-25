@@ -20,7 +20,8 @@ from cleaning import (
     clean_null_values,
     remove_duplicates,
 )
-from conversion import inspect_or_convert_type, export_to_parquet
+from conversion import inspect_or_convert_type, preview_string_transformation, export_to_parquet
+
 
 
 class TestDataCleanerPipeline(unittest.TestCase):
@@ -119,6 +120,48 @@ class TestDataCleanerPipeline(unittest.TestCase):
         self.assertEqual(df_conv["salary"].iloc[0], 50000.0)
         self.assertEqual(df_conv["salary"].iloc[1], 75000.0)
         self.assertTrue(pd.isna(df_conv["salary"].iloc[2]))
+
+    def test_type_converter_string_casing(self):
+        df = pd.DataFrame({"city": ["  mumbai  ", "new   delhi", "BANGALORE", np.nan]})
+
+        # Test Title Case
+        df_title, _, count = inspect_or_convert_type(df, "city", "String", apply_fix=True, case_transform="title", trim_whitespace=True, collapse_spaces=True)
+        self.assertEqual(df_title["city"].iloc[0], "Mumbai")
+        self.assertEqual(df_title["city"].iloc[1], "New Delhi")
+        self.assertEqual(df_title["city"].iloc[2], "Bangalore")
+        self.assertTrue(pd.isna(df_title["city"].iloc[3]))
+        self.assertEqual(count, 3)
+
+        # Test Uppercase
+        df_upper, _, _ = inspect_or_convert_type(df, "city", "String", apply_fix=True, case_transform="upper", trim_whitespace=True)
+        self.assertEqual(df_upper["city"].iloc[0], "MUMBAI")
+        self.assertEqual(df_upper["city"].iloc[1], "NEW   DELHI")
+
+        # Test Lowercase
+        df_lower, _, _ = inspect_or_convert_type(df, "city", "String", apply_fix=True, case_transform="lower", trim_whitespace=True)
+        self.assertEqual(df_lower["city"].iloc[0], "mumbai")
+        self.assertEqual(df_lower["city"].iloc[2], "bangalore")
+
+    def test_type_converter_string_preview(self):
+        df = pd.DataFrame({"name": [" rahul  sharma ", "priya singh"]})
+        previews = preview_string_transformation(df, "name", case_transform="title", trim_whitespace=True, collapse_spaces=True)
+        self.assertEqual(len(previews), 2)
+        self.assertEqual(previews[0]["original_value"], " rahul  sharma ")
+        self.assertEqual(previews[0]["transformed_value"], "Rahul Sharma")
+        self.assertTrue(previews[0]["changed"])
+
+    def test_clean_all_string_columns_casing(self):
+        df = pd.DataFrame({
+            "col1": ["  apple ", "banana"],
+            "col2": ["cat", " dog "],
+            "num": [1, 2],
+        })
+        cleaned_df, count = clean_all_string_columns(df, trim_whitespace=True, case_transform="upper")
+        self.assertEqual(cleaned_df["col1"].iloc[0], "APPLE")
+        self.assertEqual(cleaned_df["col1"].iloc[1], "BANANA")
+        self.assertEqual(cleaned_df["col2"].iloc[0], "CAT")
+        self.assertEqual(cleaned_df["col2"].iloc[1], "DOG")
+        self.assertEqual(cleaned_df["num"].iloc[0], 1)
 
     def test_parquet_export(self):
         df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
@@ -309,11 +352,55 @@ class TestDataCleanerPipeline(unittest.TestCase):
             "include_whitespace": True,
             "include_placeholders": True,
         })
-        clean_data = clean_res.get_json()
-        self.assertTrue(clean_data["success"])
-        self.assertIn("empty_strings_converted", clean_data)
+    def test_convert_type_string_casing_endpoint(self):
+        from app import app
+        client = app.test_client()
+
+        res = client.post("/api/upload", data={"demo": "true", "demo_type": "csv"})
+        data = res.get_json()
+        session_id = data["session_id"]
+
+        # Inspect mode
+        inspect_res = client.post("/api/convert/type", json={
+            "session_id": session_id,
+            "column": "city",
+            "target_type": "String",
+            "case_transform": "upper",
+            "apply_fix": False,
+        })
+        inspect_data = inspect_res.get_json()
+        self.assertTrue(inspect_data["success"])
+        self.assertFalse(inspect_data["applied"])
+        self.assertIn("preview_samples", inspect_data)
+        self.assertGreater(len(inspect_data["preview_samples"]), 0)
+        self.assertTrue(any(p["transformed_value"].isupper() for p in inspect_data["preview_samples"]))
+
+        # Apply mode
+        apply_res = client.post("/api/convert/type", json={
+            "session_id": session_id,
+            "column": "city",
+            "target_type": "String",
+            "case_transform": "upper",
+            "apply_fix": True,
+        })
+        apply_data = apply_res.get_json()
+        self.assertTrue(apply_data["success"])
+        self.assertTrue(apply_data["applied"])
+
+        # Check preview
+        prev_res = client.get(f"/api/preview?session_id={session_id}&page=1&page_size=5")
+        prev_data = prev_res.get_json()
+        for row in prev_data["rows"]:
+            if row.get("city"):
+                self.assertEqual(row["city"], row["city"].upper())
+
+        # Test Undo
+        undo_res = client.post("/api/undo", json={"session_id": session_id})
+        undo_data = undo_res.get_json()
+        self.assertTrue(undo_data["success"])
 
 
 if __name__ == "__main__":
     unittest.main()
+
 

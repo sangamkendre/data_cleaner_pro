@@ -131,8 +131,15 @@ def clean_string_column(
     return df, changes_count
 
 
-def clean_all_string_columns(df: pd.DataFrame, empty_to_null: bool = True) -> Tuple[pd.DataFrame, int]:
-    """Applies whitespace trimming, extra space collapsing, and empty-to-null to all string columns."""
+def clean_all_string_columns(
+    df: pd.DataFrame,
+    empty_to_null: bool = True,
+    trim_whitespace: bool = True,
+    remove_extra_spaces: bool = True,
+    case_transform: Optional[str] = None,
+    remove_special_chars: bool = False,
+) -> Tuple[pd.DataFrame, int]:
+    """Applies whitespace trimming, extra space collapsing, case transformation, and empty-to-null to all string columns."""
     df = df.copy()
     total_changes = 0
 
@@ -142,11 +149,14 @@ def clean_all_string_columns(df: pd.DataFrame, empty_to_null: bool = True) -> Tu
         df, changes = clean_string_column(
             df,
             col,
-            trim_whitespace=True,
-            remove_extra_spaces=True,
+            trim_whitespace=trim_whitespace,
+            remove_extra_spaces=remove_extra_spaces,
+            case_transform=case_transform,
+            remove_special_chars=remove_special_chars,
             empty_to_null=empty_to_null,
         )
         total_changes += changes
 
     return df, total_changes
+
 

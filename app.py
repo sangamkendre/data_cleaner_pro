@@ -23,8 +23,16 @@ from cleaning import (
     clean_null_values,
     remove_duplicates,
 )
-from conversion import inspect_or_convert_type, export_to_parquet
+from conversion import (
+    inspect_or_convert_type,
+    preview_string_transformation,
+    export_to_parquet,
+    inspect_pdf_tables,
+    extract_pdf_tables_to_df,
+    convert_pdf_to_export_file,
+)
 from session_manager import session_manager
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -107,6 +115,9 @@ def upload_file():
         elif demo_type == "names":
             file_path = os.path.join(SAMPLE_DIR, "sample_names_messy.csv")
             filename = "last_names_sample.csv"
+        elif demo_type == "pdf":
+            file_path = os.path.join(SAMPLE_DIR, "sample_sales_data.pdf")
+            filename = "sample_sales_data.pdf"
         else:
             file_path = os.path.join(SAMPLE_DIR, "sample_customers.csv")
             filename = "customer_data.csv"
@@ -335,7 +346,14 @@ def clean_strings():
             empty_to_null=empty_to_null,
         )
     else:
-        df_cleaned, count = clean_all_string_columns(session.current_df, empty_to_null=empty_to_null)
+        df_cleaned, count = clean_all_string_columns(
+            session.current_df,
+            empty_to_null=empty_to_null,
+            trim_whitespace=trim_ws,
+            remove_extra_spaces=collapse_sp,
+            case_transform=case_tr,
+            remove_special_chars=strip_sp,
+        )
 
     session.current_df = df_cleaned
     session.record_action("whitespace_issues_fixed", count, f"Cleaned text in {column or 'all columns'} ({count} cells updated)")
@@ -487,9 +505,13 @@ def convert_type():
     apply_fix = data.get("apply_fix", False)
     clean_currency = data.get("clean_currency_symbols", True)
     fill_unconvertible = data.get("fill_unconvertible")
+    case_transform = data.get("case_transform")  # 'upper', 'lower', 'title', 'capitalize', None
+    trim_whitespace = data.get("trim_whitespace", True)
+    collapse_spaces = data.get("collapse_spaces", False)
 
+    case_desc = f" ({case_transform.capitalize()} Case)" if (case_transform and target_type.lower() == "string") else ""
     if apply_fix:
-        session.push_state(f"Convert {column} to {target_type}")
+        session.push_state(f"Convert {column} to {target_type}{case_desc}")
 
     df_result, problematic, converted = inspect_or_convert_type(
         session.current_df,
@@ -498,11 +520,29 @@ def convert_type():
         apply_fix=apply_fix,
         clean_currency_symbols=clean_currency,
         fill_unconvertible=fill_unconvertible,
+        case_transform=case_transform,
+        trim_whitespace=trim_whitespace,
+        collapse_spaces=collapse_spaces,
     )
+
+    preview_samples = []
+    if target_type.lower() == "string":
+        preview_samples = preview_string_transformation(
+            session.current_df,
+            column=column,
+            case_transform=case_transform,
+            trim_whitespace=trim_whitespace,
+            collapse_spaces=collapse_spaces,
+            limit=10,
+        )
 
     if apply_fix:
         session.current_df = df_result
-        session.record_action("data_types_fixed", 1, f"Converted column '{column}' to {target_type} ({converted} values)")
+        session.record_action(
+            "data_types_fixed",
+            1,
+            f"Converted column '{column}' to {target_type}{case_desc} ({converted} values)"
+        )
 
     return jsonify({
         "success": True,
@@ -510,6 +550,7 @@ def convert_type():
         "converted_count": converted,
         "problematic_records": problematic,
         "total_problematic": len(problematic),
+        "preview_samples": preview_samples,
     })
 
 
@@ -721,6 +762,139 @@ def export_csv():
 
     session.current_df.to_csv(out_path, index=False)
     return send_file(out_path, as_attachment=True, download_name=out_name, mimetype="text/csv")
+
+
+@app.route("/api/export/excel", methods=["GET"])
+def export_excel():
+    session_id = request.args.get("session_id")
+    session = session_manager.get_session(session_id)
+    if not session or session.current_df is None:
+        return jsonify({"error": "No active dataset to export"}), 404
+
+    base_name = os.path.splitext(session.file_info.get("file_name", "cleaned_dataset"))[0]
+    out_name = f"{base_name}_cleaned.xlsx"
+    out_path = os.path.join(EXPORT_DIR, f"{session_id}_{out_name}")
+
+    session.current_df.to_excel(out_path, index=False, engine="openpyxl")
+    return send_file(
+        out_path,
+        as_attachment=True,
+        download_name=out_name,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+@app.route("/api/pdf/inspect", methods=["POST"])
+def inspect_pdf_endpoint():
+    is_demo = request.form.get("demo") == "true" or request.args.get("demo") == "true"
+    if is_demo:
+        file_path = os.path.join(SAMPLE_DIR, "sample_sales_data.pdf")
+        filename = "sample_sales_data.pdf"
+    else:
+        if "file" not in request.files:
+            return jsonify({"error": "No PDF file uploaded"}), 400
+        file = request.files["file"]
+        if not file or file.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
+        temp_id = str(uuid.uuid4())
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(UPLOAD_DIR, f"inspect_{temp_id}_{filename}")
+        file.save(file_path)
+
+    try:
+        info = inspect_pdf_tables(file_path)
+        return jsonify({
+            "success": True,
+            "data": info,
+            "filename": filename,
+            "temp_path": file_path if not is_demo else None,
+            "is_demo": is_demo
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to inspect PDF: {str(e)}"}), 500
+
+
+@app.route("/api/pdf/convert", methods=["POST"])
+def convert_pdf_endpoint():
+    is_demo = request.form.get("demo") == "true" or request.args.get("demo") == "true"
+    fmt = request.form.get("format", "xlsx").lower().strip()
+    selection = request.form.get("selection")
+    temp_path = request.form.get("temp_path")
+
+    if is_demo:
+        file_path = os.path.join(SAMPLE_DIR, "sample_sales_data.pdf")
+    elif temp_path and os.path.exists(temp_path):
+        file_path = temp_path
+    elif "file" in request.files:
+        file = request.files["file"]
+        if not file or file.filename == "":
+            return jsonify({"error": "No file uploaded"}), 400
+        temp_id = str(uuid.uuid4())
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(UPLOAD_DIR, f"conv_{temp_id}_{filename}")
+        file.save(file_path)
+    else:
+        return jsonify({"error": "No PDF source provided"}), 400
+
+    try:
+        out_id = str(uuid.uuid4())
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        ext = ".xlsx" if fmt in ("xlsx", "excel") else ".csv"
+        out_filename = f"{base_name}_converted{ext}"
+        out_path = os.path.join(EXPORT_DIR, f"{out_id}_{out_filename}")
+
+        export_path, download_name, meta = convert_pdf_to_export_file(
+            file_path,
+            output_format=fmt,
+            table_selection=selection,
+            output_path=out_path
+        )
+        return send_file(
+            export_path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype=meta.get("mime_type", "application/octet-stream")
+        )
+    except Exception as e:
+        return jsonify({"error": f"PDF conversion failed: {str(e)}"}), 500
+
+
+@app.route("/api/pdf/load-to-cleaner", methods=["POST"])
+def load_pdf_to_cleaner_endpoint():
+    data = request.get_json() or {}
+    temp_path = data.get("temp_path")
+    is_demo = data.get("is_demo", False)
+    selection = data.get("selection")
+
+    if is_demo:
+        file_path = os.path.join(SAMPLE_DIR, "sample_sales_data.pdf")
+        filename = "sample_sales_data.pdf"
+    elif temp_path and os.path.exists(temp_path):
+        file_path = temp_path
+        filename = os.path.basename(file_path).split("_", 2)[-1]
+    else:
+        return jsonify({"error": "PDF file reference not found or expired"}), 400
+
+    session_id = str(uuid.uuid4())
+    session = session_manager.get_or_create_session(session_id)
+
+    try:
+        df, meta = extract_pdf_tables_to_df(file_path, table_selection=selection)
+        file_info = get_file_info(df, file_path=file_path, filename=filename, file_type="PDF")
+        file_info["sheets"] = meta.get("sheets", [])
+        file_info["selected_sheet"] = meta.get("selected_sheet")
+
+        session.set_dataset(df, file_info, file_path=file_path)
+
+        return jsonify({
+            "success": True,
+            "session_id": session_id,
+            "file_info": file_info,
+            "sheets": file_info.get("sheets", []),
+            "selected_sheet": file_info.get("selected_sheet"),
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to load PDF into cleaner: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

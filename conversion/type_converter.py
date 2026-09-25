@@ -16,10 +16,14 @@ def inspect_or_convert_type(
     apply_fix: bool = False,
     clean_currency_symbols: bool = True,
     fill_unconvertible: Optional[Any] = None,  # if None, keeps as NaN or coerces
+    case_transform: Optional[str] = None,  # 'lower', 'upper', 'title', 'capitalize', None
+    trim_whitespace: bool = True,
+    collapse_spaces: bool = False,
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]], int]:
     """
     Inspects and optionally converts a column to target_type.
     Detects and reports problematic values (e.g., '₹50,000', 'N/A', 'unknown').
+    Supports casing transformation (upper, lower, title, capitalize) and whitespace sanitization when target_type is String.
     Returns:
         (df, problematic_records, converted_count)
     """
@@ -109,9 +113,69 @@ def inspect_or_convert_type(
             converted_count = int(mask.sum() - len(problematic))
 
     elif clean_target == "String":
+        str_series = df.loc[mask, column].astype(str)
+        if trim_whitespace:
+            str_series = str_series.str.strip()
+        if collapse_spaces:
+            str_series = str_series.str.replace(r"\s+", " ", regex=True)
+
+        if case_transform == "lower":
+            str_series = str_series.str.lower()
+        elif case_transform == "upper":
+            str_series = str_series.str.upper()
+        elif case_transform == "title":
+            str_series = str_series.str.title()
+        elif case_transform == "capitalize":
+            str_series = str_series.str.capitalize()
+
+        converted_count = int(mask.sum())
+
         if apply_fix:
             df[column] = df[column].astype(str)
+            df.loc[mask, column] = str_series
             df.loc[original_series.isna(), column] = np.nan
-            converted_count = int(mask.sum())
 
     return df, problematic, converted_count
+
+
+def preview_string_transformation(
+    df: pd.DataFrame,
+    column: str,
+    case_transform: Optional[str] = None,
+    trim_whitespace: bool = True,
+    collapse_spaces: bool = False,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """Returns before/after preview samples for string transformation."""
+    if column not in df.columns:
+        return []
+    mask = df[column].notna()
+    if not mask.any():
+        return []
+
+    sample_indices = df[mask].head(limit).index
+    preview = []
+    for idx in sample_indices:
+        orig = str(df.loc[idx, column])
+        transformed = orig
+        if trim_whitespace:
+            transformed = transformed.strip()
+        if collapse_spaces:
+            transformed = re.sub(r"\s+", " ", transformed)
+        if case_transform == "lower":
+            transformed = transformed.lower()
+        elif case_transform == "upper":
+            transformed = transformed.upper()
+        elif case_transform == "title":
+            transformed = transformed.title()
+        elif case_transform == "capitalize":
+            transformed = transformed.capitalize()
+
+        preview.append({
+            "row_index": int(idx),
+            "original_value": orig,
+            "transformed_value": transformed,
+            "changed": (orig != transformed),
+        })
+    return preview
+

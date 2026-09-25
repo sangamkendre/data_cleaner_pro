@@ -139,6 +139,56 @@ const App = {
     document.querySelectorAll('.modal-close, .modal-cancel').forEach(btn => {
       btn.addEventListener('click', () => this.closeAllModals());
     });
+
+    // PDF Converter Dropzones & Inputs
+    const pdfInput = document.getElementById('pdf-converter-input');
+    const pdfDropzone = document.getElementById('pdf-converter-dropzone');
+    if (pdfInput) {
+      pdfInput.addEventListener('change', (e) => {
+        if (e.target.files.length) this.handlePdfFileSelected(e.target.files[0], false);
+      });
+    }
+    if (pdfDropzone) {
+      pdfDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        pdfDropzone.classList.add('dragover');
+      });
+      pdfDropzone.addEventListener('dragleave', () => {
+        pdfDropzone.classList.remove('dragover');
+      });
+      pdfDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        pdfDropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+          this.handlePdfFileSelected(e.dataTransfer.files[0], false);
+        }
+      });
+    }
+
+    // PDF Modal Dropzone & Input
+    const pdfModalInput = document.getElementById('pdf-modal-input');
+    const pdfModalDropzone = document.getElementById('pdf-modal-dropzone');
+    if (pdfModalInput) {
+      pdfModalInput.addEventListener('change', (e) => {
+        if (e.target.files.length) this.handlePdfFileSelected(e.target.files[0], true);
+      });
+    }
+    if (pdfModalDropzone) {
+      pdfModalDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        pdfModalDropzone.classList.add('dragover');
+      });
+      pdfModalDropzone.addEventListener('dragleave', () => {
+        pdfModalDropzone.classList.remove('dragover');
+      });
+      pdfModalDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        pdfModalDropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+          this.handlePdfFileSelected(e.dataTransfer.files[0], true);
+        }
+      });
+    }
   },
 
   switchTab(tabId) {
@@ -308,7 +358,7 @@ const App = {
         <th onclick="App.handleSort('${col}')" style="cursor: pointer;">
           <div class="th-content">
             <span>${col}</span>
-            <span style="font-size: 0.65rem; color: var(--text-dim); font-weight: normal;">${type}</span>
+            <span class="col-type-tag" onclick="event.stopPropagation(); App.openQuickConvertModal('${this.escapeHtml(col)}', '${type}')" title="Change column data type or string casing (Upper/Lower/Title)">${type} ✎</span>
           </div>
         </th>
       `;
@@ -959,10 +1009,28 @@ const App = {
     }
   },
 
+  onConvertTargetTypeChange(targetType) {
+    const isString = (targetType || '').toLowerCase() === 'string';
+    const isNumeric = targetType === 'Float' || targetType === 'Integer';
+
+    const strGroup = document.getElementById('convert-string-case-group');
+    const strOptions = document.getElementById('convert-string-options');
+    const currGroup = document.getElementById('convert-currency-group');
+
+    if (strGroup) strGroup.style.display = isString ? 'block' : 'none';
+    if (strOptions) strOptions.style.display = isString ? 'flex' : 'none';
+    if (currGroup) currGroup.style.display = isNumeric ? 'block' : 'none';
+  },
+
   async executeConvertType(apply = false) {
     const col = document.getElementById('convert-col').value;
     const target = document.getElementById('convert-target-type').value;
-    const cleanCurr = document.getElementById('convert-clean-curr').checked;
+    const cleanCurr = document.getElementById('convert-clean-curr')?.checked ?? true;
+    const isString = (target || '').toLowerCase() === 'string';
+
+    const caseTransform = isString ? (document.getElementById('convert-string-case')?.value || null) : null;
+    const trimWs = isString ? (document.getElementById('convert-str-trim-ws')?.checked ?? true) : true;
+    const collapseSp = isString ? (document.getElementById('convert-str-collapse-sp')?.checked ?? false) : false;
 
     if (!col) {
       this.showToast('Please select a column to convert', 'error');
@@ -975,6 +1043,9 @@ const App = {
         target_type: target,
         apply_fix: apply,
         clean_currency_symbols: cleanCurr,
+        case_transform: caseTransform,
+        trim_whitespace: trimWs,
+        collapse_spaces: collapseSp,
       });
 
       const reportBox = document.getElementById('convert-report-box');
@@ -983,7 +1054,23 @@ const App = {
           let html = `<div style="color: var(--amber); margin-bottom: 0.5rem; font-weight: 600;">⚠ Found ${res.total_problematic} problematic values that cannot be cleanly converted:</div>`;
           html += `<div style="max-height: 180px; overflow-y: auto; background: var(--bg-input); padding: 0.5rem; border-radius: var(--radius-sm); font-size: 0.8rem;">`;
           res.problematic_records.slice(0, 20).forEach(item => {
-            html += `<div>Row #${item.row_index + 1}: <code style="color: var(--rose); font-weight: bold;">"${item.original_value}"</code> (${item.reason})</div>`;
+            html += `<div>Row #${item.row_index + 1}: <code style="color: var(--rose); font-weight: bold;">"${this.escapeHtml(item.original_value)}"</code> (${item.reason})</div>`;
+          });
+          html += `</div>`;
+          reportBox.innerHTML = html;
+          reportBox.style.display = 'block';
+        } else if (isString && res.preview_samples && res.preview_samples.length > 0) {
+          const caseLabel = caseTransform ? caseTransform.toUpperCase() : 'Preserved';
+          let html = `<div style="color: var(--emerald); font-weight: 600; margin-bottom: 0.5rem;">✓ Ready to convert <code>${this.escapeHtml(col)}</code> to String (Case: ${caseLabel}, ${res.converted_count} non-null values):</div>`;
+          html += `<div style="max-height: 200px; overflow-y: auto; background: var(--bg-input); padding: 0.65rem; border-radius: var(--radius-sm); font-size: 0.82rem; border: 1px solid var(--border-subtle);">`;
+          res.preview_samples.forEach(item => {
+            html += `
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px dashed var(--border-subtle);">
+                <span style="color: var(--text-muted); font-family: monospace; text-decoration: ${item.changed ? 'line-through' : 'none'};">"${this.escapeHtml(item.original_value)}"</span>
+                <span style="color: var(--cyan); margin: 0 0.5rem; font-weight: bold;">➔</span>
+                <span style="color: var(--emerald); font-weight: 600; font-family: monospace;">"${this.escapeHtml(item.transformed_value)}"</span>
+              </div>
+            `;
           });
           html += `</div>`;
           reportBox.innerHTML = html;
@@ -995,7 +1082,8 @@ const App = {
       }
 
       if (apply) {
-        this.showToast(`Converted column '${col}' to ${target}!`, 'success');
+        const caseMsg = (isString && caseTransform) ? ` with ${caseTransform.toUpperCase()} casing` : '';
+        this.showToast(`Converted column '${col}' to ${target}${caseMsg}!`, 'success');
         this.refreshDatasetViews();
       }
     } catch (err) {
@@ -1036,6 +1124,7 @@ const App = {
       const match = Array.from(targetSelect.options).find(o => o.value.toLowerCase() === targetType.toLowerCase());
       if (match) targetSelect.value = match.value;
     }
+    this.onConvertTargetTypeChange(targetSelect ? targetSelect.value : targetType);
     this.switchTab('cleaning');
     this.executeConvertType(false); // Inspect
   },
@@ -1420,6 +1509,17 @@ const App = {
     }
   },
 
+  onQuickConvertTargetTypeChange(targetType) {
+    const isString = (targetType || '').toLowerCase() === 'string';
+    const isNumeric = targetType === 'Float' || targetType === 'Integer';
+
+    const strGroup = document.getElementById('quick-convert-string-group');
+    const currGroup = document.getElementById('quick-convert-currency-group');
+
+    if (strGroup) strGroup.style.display = isString ? 'block' : 'none';
+    if (currGroup) currGroup.style.display = isNumeric ? 'block' : 'none';
+  },
+
   // Quick Convert In-Page Modal
   openQuickConvertModal(col, detectedType = 'Float') {
     const modal = document.getElementById('modal-quick-convert');
@@ -1437,6 +1537,8 @@ const App = {
       if (match) targetSelect.value = match.value;
     }
 
+    this.onQuickConvertTargetTypeChange(targetSelect ? targetSelect.value : detectedType);
+
     if (reportBox) reportBox.style.display = 'none';
 
     modal.classList.add('active');
@@ -1445,7 +1547,12 @@ const App = {
   async inspectQuickConvert() {
     const col = document.getElementById('quick-convert-col').value;
     const target = document.getElementById('quick-convert-target').value;
-    const cleanCurr = document.getElementById('quick-convert-clean-curr').checked;
+    const cleanCurr = document.getElementById('quick-convert-clean-curr')?.checked ?? true;
+    const isString = (target || '').toLowerCase() === 'string';
+
+    const caseTransform = isString ? (document.getElementById('quick-convert-string-case')?.value || null) : null;
+    const trimWs = isString ? (document.getElementById('quick-convert-trim-ws')?.checked ?? true) : true;
+    const collapseSp = isString ? (document.getElementById('quick-convert-collapse-sp')?.checked ?? false) : false;
 
     try {
       const res = await API.convertType(this.state.sessionId, {
@@ -1453,6 +1560,9 @@ const App = {
         target_type: target,
         apply_fix: false,
         clean_currency_symbols: cleanCurr,
+        case_transform: caseTransform,
+        trim_whitespace: trimWs,
+        collapse_spaces: collapseSp,
       });
 
       const reportBox = document.getElementById('quick-convert-report-box');
@@ -1461,7 +1571,23 @@ const App = {
           let html = `<div style="color: var(--amber); margin-bottom: 0.5rem; font-weight: 600;">⚠ Found ${res.total_problematic} problematic values that cannot be cleanly converted:</div>`;
           html += `<div style="max-height: 140px; overflow-y: auto; background: var(--bg-input); padding: 0.5rem; border-radius: var(--radius-sm); font-size: 0.8rem;">`;
           res.problematic_records.slice(0, 15).forEach(item => {
-            html += `<div>Row #${item.row_index + 1}: <code style="color: var(--rose); font-weight: bold;">"${item.original_value}"</code> (${item.reason})</div>`;
+            html += `<div>Row #${item.row_index + 1}: <code style="color: var(--rose); font-weight: bold;">"${this.escapeHtml(item.original_value)}"</code> (${item.reason})</div>`;
+          });
+          html += `</div>`;
+          reportBox.innerHTML = html;
+          reportBox.style.display = 'block';
+        } else if (isString && res.preview_samples && res.preview_samples.length > 0) {
+          const caseLabel = caseTransform ? caseTransform.toUpperCase() : 'Preserved';
+          let html = `<div style="color: var(--emerald); font-weight: 600; margin-bottom: 0.5rem;">✓ Ready to convert <code>${this.escapeHtml(col)}</code> to String (${caseLabel}):</div>`;
+          html += `<div style="max-height: 140px; overflow-y: auto; background: var(--bg-input); padding: 0.5rem; border-radius: var(--radius-sm); font-size: 0.8rem; border: 1px solid var(--border-subtle);">`;
+          res.preview_samples.forEach(item => {
+            html += `
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 0; border-bottom: 1px dashed var(--border-subtle);">
+                <span style="color: var(--text-muted); font-family: monospace; text-decoration: ${item.changed ? 'line-through' : 'none'};">"${this.escapeHtml(item.original_value)}"</span>
+                <span style="color: var(--cyan); margin: 0 0.4rem;">➔</span>
+                <span style="color: var(--emerald); font-weight: 600; font-family: monospace;">"${this.escapeHtml(item.transformed_value)}"</span>
+              </div>
+            `;
           });
           html += `</div>`;
           reportBox.innerHTML = html;
@@ -1479,20 +1605,29 @@ const App = {
   async executeQuickConvert() {
     const col = document.getElementById('quick-convert-col').value;
     const target = document.getElementById('quick-convert-target').value;
-    const cleanCurr = document.getElementById('quick-convert-clean-curr').checked;
+    const cleanCurr = document.getElementById('quick-convert-clean-curr')?.checked ?? true;
+    const isString = (target || '').toLowerCase() === 'string';
 
-    this.showToast(`Converting '${col}' to ${target}...`, 'info');
+    const caseTransform = isString ? (document.getElementById('quick-convert-string-case')?.value || null) : null;
+    const trimWs = isString ? (document.getElementById('quick-convert-trim-ws')?.checked ?? true) : true;
+    const collapseSp = isString ? (document.getElementById('quick-convert-collapse-sp')?.checked ?? false) : false;
+
+    const caseMsg = (isString && caseTransform) ? ` with ${caseTransform.toUpperCase()} casing` : '';
+    this.showToast(`Converting '${col}' to ${target}${caseMsg}...`, 'info');
     try {
       const res = await API.convertType(this.state.sessionId, {
         column: col,
         target_type: target,
         apply_fix: true,
         clean_currency_symbols: cleanCurr,
+        case_transform: caseTransform,
+        trim_whitespace: trimWs,
+        collapse_spaces: collapseSp,
       });
 
       if (res.success) {
         this.closeAllModals();
-        this.showToast(`Converted column '${col}' to ${target}!`, 'success');
+        this.showToast(`Converted column '${col}' to ${target}${caseMsg}!`, 'success');
         this.loadProfiling();
         this.refreshDatasetViews();
       }
@@ -1577,8 +1712,12 @@ const App = {
       }
 
       // Configure Export links
+      const exportExcelBtn = document.getElementById('btn-export-excel');
       const exportParquetBtn = document.getElementById('btn-export-parquet');
       const exportCsvBtn = document.getElementById('btn-export-csv');
+      if (exportExcelBtn) {
+        exportExcelBtn.href = `/api/export/excel?session_id=${this.state.sessionId}`;
+      }
       if (exportParquetBtn) {
         exportParquetBtn.href = `/api/export/parquet?session_id=${this.state.sessionId}`;
       }
@@ -1589,6 +1728,242 @@ const App = {
       document.getElementById('export-rows-badge').textContent = `${summary.rows_after.toLocaleString()} Rows`;
     } catch (err) {
       this.showToast('Failed to load summary: ' + err.message, 'error');
+    }
+  },
+
+  // ===================================================================
+  // PDF CONVERTER CONTROLLER
+  // ===================================================================
+  openPdfConverterModal() {
+    this.closeAllModals();
+    const modal = document.getElementById('modal-pdf-converter');
+    if (modal) modal.classList.add('active');
+  },
+
+  async handlePdfFileSelected(file, isModal = false) {
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+      this.showToast('Please select a valid .pdf file.', 'error');
+      return;
+    }
+    this.showToast(`Inspecting PDF: ${file.name}...`, 'info');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await API.inspectPdf(formData);
+      if (res.error) {
+        this.showToast(res.error, 'error');
+        return;
+      }
+      this.renderPdfInspectResults(res, isModal);
+      this.showToast(`Found ${res.data.total_tables} table(s) across ${res.data.total_pages} page(s)!`, 'success');
+    } catch (err) {
+      this.showToast('Failed to inspect PDF: ' + err.message, 'error');
+    }
+  },
+
+  async loadDemoPdfInConverter(isModal = false) {
+    this.showToast('Inspecting Demo Sales PDF...', 'info');
+    const formData = new FormData();
+    formData.append('demo', 'true');
+
+    try {
+      const res = await API.inspectPdf(formData);
+      if (res.error) {
+        this.showToast(res.error, 'error');
+        return;
+      }
+      this.renderPdfInspectResults(res, isModal);
+      this.showToast(`Loaded Demo PDF with ${res.data.total_tables} table(s)!`, 'success');
+    } catch (err) {
+      this.showToast('Failed to load demo PDF: ' + err.message, 'error');
+    }
+  },
+
+  renderPdfInspectResults(res, isModal = false) {
+    const prefix = isModal ? 'pdf-modal-' : 'pdf-res-';
+    const container = document.getElementById(isModal ? 'pdf-modal-results' : 'pdf-converter-results');
+    const actions = isModal ? document.getElementById('pdf-modal-actions') : null;
+
+    if (isModal) {
+      this.state.pdfModalData = res;
+    } else {
+      this.state.pdfData = res;
+    }
+
+    const data = res.data;
+    const tables = data.tables || [];
+
+    const fnEl = document.getElementById(prefix + 'filename');
+    const pgEl = document.getElementById(prefix + 'pages');
+    const tbEl = document.getElementById(prefix + 'tables');
+
+    if (fnEl) fnEl.textContent = res.filename || data.file_name || 'Document.pdf';
+    if (pgEl) pgEl.textContent = data.total_pages;
+    if (tbEl) tbEl.textContent = data.total_tables;
+
+    // Populate table select dropdown
+    const select = document.getElementById(isModal ? 'pdf-modal-table-select' : 'pdf-table-select');
+    if (select) {
+      let optHtml = '';
+      if (tables.length > 1) {
+        optHtml += `<option value="all">All Tables (Combined)</option>`;
+      }
+      tables.forEach(t => {
+        optHtml += `<option value="${t.name}">${t.name} (${t.rows} rows, ${t.columns} cols)</option>`;
+      });
+      select.innerHTML = optHtml;
+    }
+
+    // Set first selection or all
+    const defaultSelection = tables.length > 0 ? (tables.length > 1 ? 'all' : tables[0].name) : '';
+    this.updatePdfPreviewTable(defaultSelection, isModal);
+
+    if (container) container.style.display = 'block';
+    if (actions) actions.style.display = 'flex';
+  },
+
+  onPdfTableSelectChange(selection, isModal = false) {
+    this.updatePdfPreviewTable(selection, isModal);
+  },
+
+  updatePdfPreviewTable(selection, isModal = false) {
+    const pdfObj = isModal ? this.state.pdfModalData : this.state.pdfData;
+    if (!pdfObj || !pdfObj.data) return;
+
+    const prefix = isModal ? 'pdf-modal-' : 'pdf-res-';
+    const tables = pdfObj.data.tables || [];
+
+    let targetTable = null;
+    if (selection === 'all' || !selection) {
+      targetTable = tables[0];
+    } else {
+      targetTable = tables.find(t => t.name === selection || t.id === selection) || tables[0];
+    }
+
+    if (!targetTable) return;
+
+    const rwEl = document.getElementById(prefix + 'rows');
+    const clEl = document.getElementById(prefix + 'cols');
+    if (rwEl) {
+      if (selection === 'all' && tables.length > 1) {
+        const totalRows = tables.reduce((acc, t) => acc + t.rows, 0);
+        rwEl.textContent = `${totalRows} (All)`;
+      } else {
+        rwEl.textContent = targetTable.rows;
+      }
+    }
+    if (clEl) clEl.textContent = targetTable.columns;
+
+    const wrapper = document.getElementById(isModal ? 'pdf-modal-preview-wrapper' : 'pdf-preview-table-wrapper');
+    const colCountEl = document.getElementById('pdf-preview-col-count');
+    if (colCountEl) colCountEl.textContent = `${targetTable.columns} columns`;
+
+    if (wrapper) {
+      const headers = targetTable.column_names || [];
+      const rows = targetTable.preview || [];
+
+      let tableHtml = '<table class="pdf-inspect-table"><thead><tr>';
+      headers.forEach(h => {
+        tableHtml += `<th>${this.escapeHtml(h)}</th>`;
+      });
+      tableHtml += '</tr></thead><tbody>';
+
+      if (rows.length === 0) {
+        tableHtml += `<tr><td colspan="${headers.length}" style="text-align: center; color: var(--text-dim);">No preview rows available</td></tr>`;
+      } else {
+        rows.forEach(r => {
+          tableHtml += '<tr>';
+          headers.forEach(h => {
+            const val = r[h];
+            tableHtml += `<td>${val !== null && val !== undefined ? this.escapeHtml(val) : '<span style="color:var(--text-dim);">&mdash;</span>'}</td>`;
+          });
+          tableHtml += '</tr>';
+        });
+      }
+
+      tableHtml += '</tbody></table>';
+      wrapper.innerHTML = tableHtml;
+    }
+  },
+
+  async executePdfConvert(format = 'xlsx', isModal = false) {
+    const pdfObj = isModal ? this.state.pdfModalData : this.state.pdfData;
+    if (!pdfObj) {
+      this.showToast('Please select or upload a PDF first.', 'error');
+      return;
+    }
+
+    const select = document.getElementById(isModal ? 'pdf-modal-table-select' : 'pdf-table-select');
+    const selection = select ? select.value : 'all';
+
+    const fmtLabel = format.toUpperCase();
+    this.showToast(`Converting PDF to ${fmtLabel}...`, 'info');
+
+    // Trigger download via hidden form POST
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/api/pdf/convert';
+    form.style.display = 'none';
+
+    if (pdfObj.is_demo) {
+      const demoInput = document.createElement('input');
+      demoInput.name = 'demo';
+      demoInput.value = 'true';
+      form.appendChild(demoInput);
+    } else if (pdfObj.temp_path) {
+      const pathInput = document.createElement('input');
+      pathInput.name = 'temp_path';
+      pathInput.value = pdfObj.temp_path;
+      form.appendChild(pathInput);
+    }
+
+    const fmtInput = document.createElement('input');
+    fmtInput.name = 'format';
+    fmtInput.value = format;
+    form.appendChild(fmtInput);
+
+    if (selection) {
+      const selInput = document.createElement('input');
+      selInput.name = 'selection';
+      selInput.value = selection;
+      form.appendChild(selInput);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => form.remove(), 1500);
+    this.showToast(`Downloading converted ${fmtLabel} file!`, 'success');
+  },
+
+  async executePdfLoadToCleaner(isModal = false) {
+    const pdfObj = isModal ? this.state.pdfModalData : this.state.pdfData;
+    if (!pdfObj) {
+      this.showToast('Please select or upload a PDF first.', 'error');
+      return;
+    }
+
+    const select = document.getElementById(isModal ? 'pdf-modal-table-select' : 'pdf-table-select');
+    const selection = select ? select.value : 'all';
+
+    this.showToast('Ingesting PDF into Data Cleaner Studio...', 'info');
+    try {
+      const res = await API.loadPdfToCleaner({
+        temp_path: pdfObj.temp_path,
+        is_demo: !!pdfObj.is_demo,
+        selection: selection,
+      });
+
+      if (res.error) {
+        this.showToast(res.error, 'error');
+        return;
+      }
+
+      this.closeAllModals();
+      this.onDatasetLoaded(res);
+      this.showToast('PDF loaded into Data Cleaner! Ready for profiling & cleaning.', 'success');
+    } catch (err) {
+      this.showToast('Failed to load PDF into cleaner: ' + err.message, 'error');
     }
   },
 

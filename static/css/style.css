@@ -848,6 +848,30 @@ body {
   gap: 0.5rem;
 }
 
+.col-type-tag {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--trans-fast);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  text-transform: none;
+}
+
+.col-type-tag:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: var(--bg-hover);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+
 .data-table td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
@@ -1480,3 +1504,56 @@ body {
     padding: 0 1rem 2rem 1rem;
   }
 }
+
+/* ===================================================================
+   PDF CONVERTER STYLING
+=================================================================== */
+.pdf-converter-container {
+  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-sm);
+}
+
+.pdf-converter-container:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.pdf-converter-dropzone {
+  border: 2px dashed rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.03);
+  border-radius: var(--radius-md);
+  padding: 1.75rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pdf-converter-dropzone:hover,
+.pdf-converter-dropzone.dragover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+  transform: translateY(-2px);
+}
+
+.pdf-inspect-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.pdf-inspect-table th {
+  background: var(--bg-table-header);
+  color: var(--text-main);
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.pdf-inspect-table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+

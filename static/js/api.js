@@ -191,7 +191,16 @@ const API = {
     return parseResponse(res);
   },
 
-  async convertType(sessionId, { column, target_type, apply_fix = false, clean_currency_symbols = true, fill_unconvertible = null }) {
+  async convertType(sessionId, {
+    column,
+    target_type,
+    apply_fix = false,
+    clean_currency_symbols = true,
+    fill_unconvertible = null,
+    case_transform = null,
+    trim_whitespace = true,
+    collapse_spaces = false,
+  }) {
     const res = await fetch('/api/convert/type', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -202,6 +211,9 @@ const API = {
         apply_fix,
         clean_currency_symbols,
         fill_unconvertible,
+        case_transform,
+        trim_whitespace,
+        collapse_spaces,
       }),
     });
     return parseResponse(res);
@@ -241,4 +253,22 @@ const API = {
     const res = await fetch(`/api/summary?session_id=${sessionId}`);
     return parseResponse(res);
   },
+
+  async inspectPdf(formData) {
+    const res = await fetch('/api/pdf/inspect', {
+      method: 'POST',
+      body: formData,
+    });
+    return parseResponse(res);
+  },
+
+  async loadPdfToCleaner({ temp_path, is_demo = false, selection = null }) {
+    const res = await fetch('/api/pdf/load-to-cleaner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ temp_path, is_demo, selection }),
+    });
+    return parseResponse(res);
+  },
 };
+

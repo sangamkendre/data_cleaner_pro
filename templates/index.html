@@ -53,6 +53,9 @@
         <button class="btn btn-primary btn-sm btn-demo" data-type="csv" title="Load sample customers dataset">
           <span>⚡ Load Demo CSV</span>
         </button>
+        <button id="btn-header-pdf" class="btn btn-secondary btn-sm" onclick="App.openPdfConverterModal()" title="Instant PDF to Excel or CSV Converter">
+          <span>📑 PDF Converter</span>
+        </button>
       </div>
     </div>
   </header>
@@ -99,15 +102,16 @@
         <p>Incorporate intelligent profiling, format-aware deduplication, semantic string sanitization, and export directly to high-performance Apache Parquet.</p>
 
         <div id="drop-zone" class="drop-zone">
-          <input type="file" id="file-input" style="display: none;" accept=".csv,.tsv,.txt,.xlsx,.xls,.parquet,.pq,.sql">
+          <input type="file" id="file-input" style="display: none;" accept=".csv,.tsv,.txt,.xlsx,.xls,.parquet,.pq,.sql,.pdf">
           <div class="drop-icon">📂</div>
           <h3 style="font-size: 1.15rem; font-weight: 700;">Drag and drop your dataset file here</h3>
-          <p style="color: var(--text-muted); font-size: 0.85rem;">or click to browse from your computer</p>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">or click to browse from your computer (CSV, Excel, PDF, Parquet, SQL)</p>
 
           <div class="format-pills">
             <span class="format-pill">.CSV</span>
             <span class="format-pill">.XLSX</span>
             <span class="format-pill">.XLS</span>
+            <span class="format-pill">.PDF</span>
             <span class="format-pill">.PARQUET</span>
             <span class="format-pill">.SQL</span>
           </div>
@@ -118,6 +122,10 @@
             <div style="font-weight: 700; font-size: 0.95rem;">Want to test immediately?</div>
             <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Load pre-configured dirty test datasets with messy contacts, dates, emails, and currency symbols:</div>
           </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+            <button class="btn btn-secondary btn-sm btn-demo" data-type="pdf">
+              <span>📑 Sales Data (PDF)</span>
+            </button>
             <button class="btn btn-secondary btn-sm btn-demo" data-type="names">
               <span>👤 Messy Names (User Image Data)</span>
             </button>
@@ -130,6 +138,91 @@
             <button class="btn btn-secondary btn-sm btn-demo" data-type="sql">
               <span>🗄️ Database Dump (SQL)</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Dedicated PDF to Excel / CSV Converter Section -->
+        <div class="pdf-converter-container glass-panel" style="margin-top: 2rem; padding: 1.5rem; border: 1px solid rgba(99, 102, 241, 0.25); background: linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(6, 182, 212, 0.04)); border-radius: var(--radius-lg);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div style="width: 42px; height: 42px; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--rose), #f97316); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; color: #fff; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);">
+                📑
+              </div>
+              <div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; color: var(--text-main);">PDF to Excel & CSV Converter</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 2px 0 0 0;">Extract structured tables from any PDF document with smart header detection and 1-click export.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary btn-sm" onclick="App.loadDemoPdfInConverter()">
+                <span>⚡ Try Demo Sales PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="pdf-converter-dropzone" class="pdf-converter-dropzone" onclick="document.getElementById('pdf-converter-input').click()">
+            <input type="file" id="pdf-converter-input" style="display: none;" accept=".pdf">
+            <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">📄</div>
+            <div style="font-weight: 600; font-size: 0.95rem;">Select or drop a PDF file here to extract tables</div>
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">Supports sales reports, invoices, financial statements, and multi-page tables</div>
+          </div>
+
+          <!-- PDF Results Preview Area (Shown after PDF is parsed) -->
+          <div id="pdf-converter-results" style="display: none; margin-top: 1.25rem;">
+            <!-- Meta Stats & Table Selector Bar -->
+            <div class="glass-panel" style="padding: 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+              <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">File:</span>
+                  <strong id="pdf-res-filename" style="font-size: 0.9rem; color: var(--cyan); margin-left: 4px;">—</strong>
+                </div>
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">Pages:</span>
+                  <strong id="pdf-res-pages" style="font-size: 0.9rem; margin-left: 4px;">0</strong>
+                </div>
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">Tables Detected:</span>
+                  <strong id="pdf-res-tables" style="font-size: 0.9rem; color: var(--emerald); margin-left: 4px;">0</strong>
+                </div>
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">Rows:</span>
+                  <strong id="pdf-res-rows" style="font-size: 0.9rem; color: var(--emerald); margin-left: 4px;">0</strong>
+                </div>
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">Columns:</span>
+                  <strong id="pdf-res-cols" style="font-size: 0.9rem; margin-left: 4px;">0</strong>
+                </div>
+              </div>
+
+              <!-- Table Selection Dropdown (if multiple tables/pages) -->
+              <div id="pdf-table-select-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
+                <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Select Table:</label>
+                <select id="pdf-table-select" class="form-control" style="width: auto; min-width: 180px; padding: 0.35rem 0.75rem; font-size: 0.85rem;" onchange="App.onPdfTableSelectChange(this.value)">
+                </select>
+              </div>
+            </div>
+
+            <!-- Table Live Preview -->
+            <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+              <span>Extracted Table Preview (First 5 Rows)</span>
+              <span id="pdf-preview-col-count" style="font-size: 0.75rem; color: var(--text-dim);"></span>
+            </div>
+            <div id="pdf-preview-table-wrapper" class="table-container" style="max-height: 240px; margin-bottom: 1.25rem;">
+              <!-- Table injected here -->
+            </div>
+
+            <!-- Conversion Action Buttons -->
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <button class="btn btn-emerald" onclick="App.executePdfConvert('xlsx')" style="flex: 1; min-width: 180px;">
+                <span>📊 Convert & Download Excel (.xlsx)</span>
+              </button>
+              <button class="btn btn-primary" onclick="App.executePdfConvert('csv')" style="flex: 1; min-width: 180px;">
+                <span>📄 Convert & Download CSV (.csv)</span>
+              </button>
+              <button class="btn btn-secondary" onclick="App.executePdfLoadToCleaner()" style="flex: 1; min-width: 200px;">
+                <span>🧹 Open in Data Cleaner Studio ➔</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -661,7 +754,7 @@
 
             <div class="form-group">
               <label class="form-label">Target Data Type</label>
-              <select id="convert-target-type" class="form-control">
+              <select id="convert-target-type" class="form-control" onchange="App.onConvertTargetTypeChange(this.value)">
                 <option value="Float">Float (Decimal Number)</option>
                 <option value="Integer">Integer (Whole Number)</option>
                 <option value="Date">Date (YYYY-MM-DD)</option>
@@ -670,11 +763,23 @@
               </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="convert-currency-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="convert-clean-curr" checked>
                 <span>Strip currency signs (₹, $, €, £) & commas</span>
               </label>
+            </div>
+
+            <!-- String Casing option (shown when String target is selected) -->
+            <div class="form-group" id="convert-string-case-group" style="display: none;">
+              <label class="form-label">Text Case Transformation</label>
+              <select id="convert-string-case" class="form-control">
+                <option value="">Keep Existing Casing</option>
+                <option value="title">Title Case (e.g. Rahul Sharma)</option>
+                <option value="upper">UPPERCASE (e.g. RAHUL SHARMA)</option>
+                <option value="lower">lowercase (e.g. rahul sharma)</option>
+                <option value="capitalize">Capitalize (e.g. Rahul sharma)</option>
+              </select>
             </div>
 
             <div style="display: flex; gap: 0.5rem;">
@@ -685,6 +790,18 @@
                 <span>Apply Conversion</span>
               </button>
             </div>
+          </div>
+
+          <!-- String sanitization toggles when String is selected -->
+          <div id="convert-string-options" style="display: none; margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-subtle); gap: 1.5rem; flex-wrap: wrap;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="convert-str-trim-ws" checked>
+              <span>Trim leading & trailing whitespace</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="convert-str-collapse-sp" checked>
+              <span>Collapse multiple consecutive spaces</span>
+            </label>
           </div>
 
           <!-- Report box for problematic values -->
@@ -764,11 +881,14 @@
             </p>
 
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-              <a id="btn-export-parquet" href="#" class="btn btn-emerald" style="flex: 1;">
-                <span>⬇ Download Parquet</span>
+              <a id="btn-export-excel" href="#" class="btn btn-emerald" style="flex: 1; min-width: 170px;">
+                <span>📊 Download Excel (.xlsx)</span>
               </a>
-              <a id="btn-export-csv" href="#" class="btn btn-secondary">
-                <span>⬇ Download CSV</span>
+              <a id="btn-export-csv" href="#" class="btn btn-secondary" style="flex: 1; min-width: 140px;">
+                <span>📄 Download CSV</span>
+              </a>
+              <a id="btn-export-parquet" href="#" class="btn btn-secondary" style="flex: 1; min-width: 160px;">
+                <span>⚡ Download Parquet</span>
               </a>
             </div>
           </div>
@@ -1016,7 +1136,7 @@
 
         <div class="form-group">
           <label class="form-label">Convert To Target Type</label>
-          <select id="quick-convert-target" class="form-control">
+          <select id="quick-convert-target" class="form-control" onchange="App.onQuickConvertTargetTypeChange(this.value)">
             <option value="Float">Float (Decimal Number)</option>
             <option value="Integer">Integer (Whole Number)</option>
             <option value="Date">Date (YYYY-MM-DD)</option>
@@ -1025,11 +1145,35 @@
           </select>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="quick-convert-currency-group">
           <label class="checkbox-label">
             <input type="checkbox" id="quick-convert-clean-curr" checked>
             <span>Strip currency signs (₹, $, €, £) and thousand separators</span>
           </label>
+        </div>
+
+        <!-- String Casing options for Quick Convert Modal -->
+        <div id="quick-convert-string-group" style="display: none;">
+          <div class="form-group">
+            <label class="form-label">Text Case Transformation</label>
+            <select id="quick-convert-string-case" class="form-control">
+              <option value="">Keep Existing Casing</option>
+              <option value="title">Title Case (e.g. Rahul Sharma)</option>
+              <option value="upper">UPPERCASE (e.g. RAHUL SHARMA)</option>
+              <option value="lower">lowercase (e.g. rahul sharma)</option>
+              <option value="capitalize">Capitalize (e.g. Rahul sharma)</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="quick-convert-trim-ws" checked>
+              <span>Trim whitespace</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="quick-convert-collapse-sp" checked>
+              <span>Collapse spaces</span>
+            </label>
+          </div>
         </div>
 
         <div id="quick-convert-report-box" style="display: none; margin-top: 0.75rem;"></div>
@@ -1066,6 +1210,69 @@
         <button class="btn btn-danger" onclick="App.executeResetDataset()">
           <span>Yes, Reset to Raw</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated PDF Converter Modal (Accessible from Header anytime) -->
+  <div id="modal-pdf-converter" class="modal-overlay">
+    <div class="modal-card" style="max-width: 740px;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">📑</span>
+          <span>PDF to Excel / CSV Converter</span>
+        </div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">
+            Extract structured tables from PDF documents with instant 1-click export to Excel (.xlsx) or CSV (.csv).
+          </span>
+          <button class="btn btn-secondary btn-xs" onclick="App.loadDemoPdfInConverter(true)">
+            <span>⚡ Try Sample Sales PDF</span>
+          </button>
+        </div>
+
+        <div id="pdf-modal-dropzone" class="pdf-converter-dropzone" onclick="document.getElementById('pdf-modal-input').click()">
+          <input type="file" id="pdf-modal-input" style="display: none;" accept=".pdf">
+          <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">📄</div>
+          <div style="font-weight: 600; font-size: 0.95rem;">Select or drop a PDF file here to extract tables</div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">Extracts tabular datasets with header recognition and clean value alignment</div>
+        </div>
+
+        <!-- Modal PDF Preview Area -->
+        <div id="pdf-modal-results" style="display: none; margin-top: 1rem;">
+          <div class="glass-panel" style="padding: 0.75rem 1rem; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; font-size: 0.82rem;">
+            <div>File: <strong id="pdf-modal-filename" style="color: var(--cyan);">—</strong></div>
+            <div>Pages: <strong id="pdf-modal-pages">0</strong></div>
+            <div>Tables: <strong id="pdf-modal-tables" style="color: var(--emerald);">0</strong></div>
+            <div>Rows: <strong id="pdf-modal-rows" style="color: var(--emerald);">0</strong></div>
+            <div>Columns: <strong id="pdf-modal-cols">0</strong></div>
+          </div>
+
+          <div id="pdf-modal-table-select-wrapper" class="form-group" style="margin-bottom: 0.75rem;">
+            <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Select Table / Page:</label>
+            <select id="pdf-modal-table-select" class="form-control" onchange="App.onPdfTableSelectChange(this.value, true)"></select>
+          </div>
+
+          <div style="font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Table Preview (First 5 Rows):</div>
+          <div id="pdf-modal-preview-wrapper" class="table-container" style="max-height: 200px; margin-bottom: 1rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <button class="btn btn-secondary modal-cancel">Close</button>
+        <div id="pdf-modal-actions" style="display: none; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn btn-emerald" onclick="App.executePdfConvert('xlsx', true)">
+            <span>📊 Download Excel</span>
+          </button>
+          <button class="btn btn-primary" onclick="App.executePdfConvert('csv', true)">
+            <span>📄 Download CSV</span>
+          </button>
+          <button class="btn btn-secondary" onclick="App.executePdfLoadToCleaner(true)">
+            <span>🧹 Open in Cleaner Studio ➔</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

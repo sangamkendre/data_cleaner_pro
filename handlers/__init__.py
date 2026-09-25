@@ -9,12 +9,14 @@ from handlers.csv_handler import CSVHandler
 from handlers.excel_handler import ExcelHandler
 from handlers.parquet_handler import ParquetHandler
 from handlers.sql_handler import SQLHandler
+from handlers.pdf_handler import PDFHandler
 
 HANDLERS: List[BaseHandler] = [
     CSVHandler(),
     ExcelHandler(),
     ParquetHandler(),
     SQLHandler(),
+    PDFHandler(),
 ]
 
 
@@ -32,6 +34,7 @@ __all__ = [
     "ExcelHandler",
     "ParquetHandler",
     "SQLHandler",
+    "PDFHandler",
     "get_handler_for_file",
     "HANDLERS",
 ]

@@ -6,3 +6,4 @@ openpyxl
 pyarrow
 fastparquet
 python-calamine
+pdfplumber
