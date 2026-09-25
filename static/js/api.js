@@ -270,5 +270,11 @@ const API = {
     });
     return parseResponse(res);
   },
+
+  async getSheets(sessionId) {
+    const res = await fetch(`/api/sheets?session_id=${sessionId}`);
+    return parseResponse(res);
+  },
 };
+
 

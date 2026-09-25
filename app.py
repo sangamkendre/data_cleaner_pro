@@ -151,6 +151,7 @@ def upload_file():
             "file_info": file_info,
             "sheets": file_info.get("sheets", []),
             "selected_sheet": file_info.get("selected_sheet"),
+            "sheets_overview": session.get_sheets_overview(),
         })
     except Exception as e:
         return jsonify({"error": f"Failed to parse file: {str(e)}"}), 500
@@ -166,6 +167,16 @@ def select_sheet():
     if not session or not session.original_file_path:
         return jsonify({"error": "Active session not found"}), 404
 
+    # If already cached in session.sheets_data, switch directly without re-reading file
+    if sheet_name in session.sheets_data:
+        session.switch_sheet(sheet_name)
+        return jsonify({
+            "success": True,
+            "file_info": session.file_info,
+            "selected_sheet": sheet_name,
+            "sheets_overview": session.get_sheets_overview(),
+        })
+
     handler = get_handler_for_file(session.file_info.get("file_name", ""))
     if not handler:
         return jsonify({"error": "Handler not found"}), 400
@@ -176,15 +187,31 @@ def select_sheet():
         file_info["sheets"] = session.sheets
         file_info["selected_sheet"] = sheet_name
 
-        session.set_dataset(df, file_info, file_path=session.original_file_path)
+        session.switch_sheet(sheet_name, new_df=df, new_file_info=file_info)
 
         return jsonify({
             "success": True,
-            "file_info": file_info,
+            "file_info": session.file_info,
             "selected_sheet": sheet_name,
+            "sheets_overview": session.get_sheets_overview(),
         })
     except Exception as e:
         return jsonify({"error": f"Error loading sheet: {str(e)}"}), 500
+
+
+@app.route("/api/sheets", methods=["GET"])
+def get_sheets():
+    session_id = request.args.get("session_id")
+    session = session_manager.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    return jsonify({
+        "success": True,
+        "sheets": session.sheets,
+        "active_sheet": session.active_sheet,
+        "sheets_overview": session.get_sheets_overview(),
+    })
 
 
 @app.route("/api/preview", methods=["GET"])
@@ -775,7 +802,28 @@ def export_excel():
     out_name = f"{base_name}_cleaned.xlsx"
     out_path = os.path.join(EXPORT_DIR, f"{session_id}_{out_name}")
 
-    session.current_df.to_excel(out_path, index=False, engine="openpyxl")
+    if session.sheets and len(session.sheets) > 1:
+        # Multi-sheet workbook export: write all sheets into the excel workbook
+        session._sync_active_sheet()
+        with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+            for s in session.sheets:
+                if s in session.sheets_data:
+                    df_sheet = session.sheets_data[s]["current_df"]
+                else:
+                    handler = get_handler_for_file(session.file_info.get("file_name", ""))
+                    if handler and session.original_file_path:
+                        try:
+                            df_sheet, _ = handler.read(session.original_file_path, sheet_name=s)
+                        except Exception:
+                            continue
+                    else:
+                        continue
+                invalid_chars = set("[]:*?/\x5c")
+                clean_sheet_title = "".join(c for c in s if c not in invalid_chars)[:31].strip() or "Sheet"
+                df_sheet.to_excel(writer, sheet_name=clean_sheet_title, index=False)
+    else:
+        session.current_df.to_excel(out_path, index=False, engine="openpyxl")
+
     return send_file(
         out_path,
         as_attachment=True,

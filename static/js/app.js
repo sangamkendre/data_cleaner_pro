@@ -267,7 +267,7 @@ const App = {
     fileInfoBar.forEach(el => el.style.display = 'block');
 
     this.renderFileInfoBar(res.file_info);
-    this.updateSheetSelector(res.file_info.sheets, res.file_info.selected_sheet);
+    this.updateSheetSelector(res.file_info.sheets, res.file_info.selected_sheet, res.sheets_overview);
 
     // Switch to preview tab and pre-warm profiling
     this.switchTab('preview');
@@ -282,22 +282,60 @@ const App = {
     document.querySelectorAll('.val-cols').forEach(el => el.textContent = (info.columns || 0).toLocaleString());
   },
 
-  updateSheetSelector(sheets, selected) {
+  updateSheetSelector(sheets, selected, sheetsOverview = []) {
     const selectorContainer = document.getElementById('sheet-selector-container');
     const sheetSelect = document.getElementById('sheet-select');
-
-    if (!selectorContainer || !sheetSelect) return;
+    const previewTabsContainer = document.getElementById('excel-sheet-tabs-container');
+    const previewPills = document.getElementById('sheet-tabs-pills');
+    const cleanTabsContainer = document.getElementById('cleaning-sheet-tabs-container');
+    const cleanPills = document.getElementById('cleaning-sheet-tabs-pills');
 
     if (sheets && sheets.length > 1) {
-      selectorContainer.style.display = 'flex';
-      sheetSelect.innerHTML = sheets.map(s => `<option value="${s}" ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
+      if (selectorContainer && sheetSelect) {
+        selectorContainer.style.display = 'flex';
+        sheetSelect.innerHTML = sheets.map(s => `<option value="${s}" ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
+      }
+
+      const overviewMap = {};
+      (sheetsOverview || []).forEach(item => {
+        overviewMap[item.name] = item;
+      });
+
+      const pillsHtml = sheets.map(s => {
+        const isActive = (s === selected);
+        const info = overviewMap[s];
+        const rowsCount = info && info.rows !== null && info.rows !== undefined ? `${info.rows.toLocaleString()} rows` : '';
+        const isCleaned = info && info.is_cleaned;
+        const fixesCount = info && info.actions_count ? info.actions_count : 0;
+
+        return `
+          <button type="button" class="sheet-tab-btn ${isActive ? 'active' : ''}" onclick="App.handleSheetChange('${this.escapeHtml(s)}')" title="Switch to sheet '${this.escapeHtml(s)}'">
+            <span>📑</span>
+            <span>${this.escapeHtml(s)}</span>
+            ${rowsCount ? `<span class="sheet-tab-badge">${rowsCount}</span>` : ''}
+            ${isCleaned ? `<span class="sheet-tab-status cleaned">● Cleaned (${fixesCount})</span>` : ''}
+          </button>
+        `;
+      }).join('');
+
+      if (previewTabsContainer && previewPills) {
+        previewTabsContainer.style.display = 'block';
+        previewPills.innerHTML = pillsHtml;
+      }
+
+      if (cleanTabsContainer && cleanPills) {
+        cleanTabsContainer.style.display = 'block';
+        cleanPills.innerHTML = pillsHtml;
+      }
     } else {
-      selectorContainer.style.display = 'none';
+      if (selectorContainer) selectorContainer.style.display = 'none';
+      if (previewTabsContainer) previewTabsContainer.style.display = 'none';
+      if (cleanTabsContainer) cleanTabsContainer.style.display = 'none';
     }
   },
 
   async handleSheetChange(sheetName) {
-    this.showToast(`Switching sheet to '${sheetName}'...`, 'info');
+    this.showToast(`Loading sheet '${sheetName}'...`, 'info');
     try {
       const res = await API.selectSheet(this.state.sessionId, sheetName);
       if (res.error) {
@@ -305,8 +343,17 @@ const App = {
         return;
       }
       this.state.fileInfo = res.file_info;
+      this.state.currentPage = 1;
+      this.state.searchQuery = '';
+      const searchInput = document.getElementById('preview-search');
+      if (searchInput) searchInput.value = '';
+
       this.renderFileInfoBar(res.file_info);
-      this.loadPreview();
+      this.updateSheetSelector(res.file_info.sheets, res.selected_sheet, res.sheets_overview);
+      await this.loadPreview();
+      await this.loadProfiling();
+      this.populateCleaningOptions();
+      this.showToast(`Active sheet: '${sheetName}' (${(res.file_info.rows || 0).toLocaleString()} rows)`, 'success');
     } catch (err) {
       this.showToast('Failed to switch sheet: ' + err.message, 'error');
     }
@@ -1665,6 +1712,14 @@ const App = {
           }
         }
       }).catch(() => {});
+
+      if (this.state.fileInfo && this.state.fileInfo.sheets && this.state.fileInfo.sheets.length > 1) {
+        API.getSheets(this.state.sessionId).then(data => {
+          if (data && data.sheets_overview) {
+            this.updateSheetSelector(data.sheets, data.active_sheet, data.sheets_overview);
+          }
+        }).catch(() => {});
+      }
     }
 
     if (this.state.currentTab === 'preview') {

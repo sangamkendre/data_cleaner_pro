@@ -262,6 +262,17 @@
         </div>
       </div>
 
+      <!-- Interactive Sheet Tabs Bar for Multi-Sheet Workbooks -->
+      <div id="excel-sheet-tabs-container" class="sheet-tabs-bar glass-panel" style="display: none; margin-bottom: 1rem; padding: 0.75rem 1rem;">
+        <div class="sheet-tabs-nav">
+          <div class="sheet-tabs-label">
+            <span style="font-size: 1.1rem;">📑</span>
+            <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main);">Workbook Sheets:</span>
+          </div>
+          <div id="sheet-tabs-pills" class="sheet-tabs-pills"></div>
+        </div>
+      </div>
+
       <!-- Preview Table Container -->
       <div class="glass-panel" style="overflow: hidden;">
         <div class="table-toolbar">
@@ -424,6 +435,17 @@
         <button class="btn btn-emerald" onclick="App.switchTab('summary')">
           <span>View Cleaning Summary & Export ➔</span>
         </button>
+      </div>
+
+      <!-- Interactive Sheet Tabs Bar for Cleaning Studio -->
+      <div id="cleaning-sheet-tabs-container" class="sheet-tabs-bar glass-panel" style="display: none; margin-bottom: 1.5rem; padding: 0.75rem 1rem;">
+        <div class="sheet-tabs-nav">
+          <div class="sheet-tabs-label">
+            <span style="font-size: 1.1rem;">📑</span>
+            <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main);">Current Cleaning Sheet:</span>
+          </div>
+          <div id="cleaning-sheet-tabs-pills" class="sheet-tabs-pills"></div>
+        </div>
       </div>
 
       <div class="cleaning-grid">
