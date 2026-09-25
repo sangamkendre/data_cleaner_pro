@@ -1,0 +1,13 @@
+Order_ID,Date,Product,Category,Quantity,Unit_Price,Total_Sales
+1001,2026-09-01,Laptop,Electronics,2,55000,110000
+1002,2026-09-02,Mouse,Accessories,5,800,4000
+1003,2026-09-03,Keyboard,Accessories,3,1500,4500
+1004,2026-09-04,Monitor,Electronics,2,18000,36000
+1005,2026-09-05,Headphones,Audio,4,2500,10000
+1006,2026-09-06,Webcam,Accessories,2,3500,7000
+1007,2026-09-07,SSD,Storage,3,6000,18000
+1008,2026-09-08,Printer,Electronics,1,12000,12000
+1009,2026-09-09,USB Cable,Accessories,10,350,3500
+1010,2026-09-10,Desk Lamp,Home Office,3,1200,3600
+1011,2026-09-11,Laptop Stand,Accessories,2,2200,4400
+1012,2026-09-12,Tablet,Electronics,2,28000,56000

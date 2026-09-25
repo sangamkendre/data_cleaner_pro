@@ -1848,6 +1848,7 @@ const App = {
 
     const data = res.data;
     const tables = data.tables || [];
+    const columnsMatch = data.columns_match !== false;
 
     const fnEl = document.getElementById(prefix + 'filename');
     const pgEl = document.getElementById(prefix + 'pages');
@@ -1857,12 +1858,54 @@ const App = {
     if (pgEl) pgEl.textContent = data.total_pages;
     if (tbEl) tbEl.textContent = data.total_tables;
 
+    // Inject or update Schema Banner
+    const bannerId = prefix + 'schema-banner';
+    let bannerEl = document.getElementById(bannerId);
+    if (!bannerEl && container) {
+      bannerEl = document.createElement('div');
+      bannerEl.id = bannerId;
+      bannerEl.style.margin = '0.75rem 0';
+      bannerEl.style.padding = '0.65rem 0.9rem';
+      bannerEl.style.borderRadius = 'var(--radius-md)';
+      bannerEl.style.fontSize = '0.8rem';
+      bannerEl.style.lineHeight = '1.4';
+      const statsBar = container.querySelector('.glass-panel');
+      if (statsBar && statsBar.nextSibling) {
+        container.insertBefore(bannerEl, statsBar.nextSibling);
+      } else {
+        container.prepend(bannerEl);
+      }
+    }
+
+    if (bannerEl) {
+      if (tables.length > 1) {
+        bannerEl.style.display = 'block';
+        if (columnsMatch) {
+          bannerEl.style.background = 'rgba(16, 185, 129, 0.12)';
+          bannerEl.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          bannerEl.style.color = '#34d399';
+          bannerEl.innerHTML = `<strong>✨ Consistent Column Schema:</strong> All <strong>${tables.length}</strong> tables share matching column headers (multi-page table). They can be cleanly merged into one dataset or exported as a single unified sheet.`;
+        } else {
+          bannerEl.style.background = 'rgba(245, 158, 11, 0.12)';
+          bannerEl.style.border = '1px solid rgba(245, 158, 11, 0.35)';
+          bannerEl.style.color = '#fbbf24';
+          bannerEl.innerHTML = `<strong>🔀 Multi-Schema Document:</strong> Detected <strong>${tables.length}</strong> tables with different columns. When exporting to Excel, each table will be saved to its own dedicated worksheet. In Cleaner Studio, each table can be cleaned individually via sheet tabs.`;
+        }
+      } else {
+        bannerEl.style.display = 'none';
+      }
+    }
+
     // Populate table select dropdown
     const select = document.getElementById(isModal ? 'pdf-modal-table-select' : 'pdf-table-select');
     if (select) {
       let optHtml = '';
       if (tables.length > 1) {
-        optHtml += `<option value="all">All Tables (Combined)</option>`;
+        if (columnsMatch) {
+          optHtml += `<option value="all">All Tables (Combined - Same Columns)</option>`;
+        } else {
+          optHtml += `<option value="all">All Tables (Export: Multi-Sheet Excel / ZIP CSV)</option>`;
+        }
       }
       tables.forEach(t => {
         optHtml += `<option value="${t.name}">${t.name} (${t.rows} rows, ${t.columns} cols)</option>`;
@@ -1870,8 +1913,12 @@ const App = {
       select.innerHTML = optHtml;
     }
 
-    // Set first selection or all
-    const defaultSelection = tables.length > 0 ? (tables.length > 1 ? 'all' : tables[0].name) : '';
+    // Set smart initial selection:
+    // If columns differ, default to Table 1 so the preview clearly shows the first real table's headers!
+    const defaultSelection = tables.length > 0 ? (columnsMatch ? (tables.length > 1 ? 'all' : tables[0].name) : tables[0].name) : '';
+    if (select && defaultSelection) {
+      select.value = defaultSelection;
+    }
     this.updatePdfPreviewTable(defaultSelection, isModal);
 
     if (container) container.style.display = 'block';
@@ -1888,6 +1935,7 @@ const App = {
 
     const prefix = isModal ? 'pdf-modal-' : 'pdf-res-';
     const tables = pdfObj.data.tables || [];
+    const columnsMatch = pdfObj.data.columns_match !== false;
 
     let targetTable = null;
     if (selection === 'all' || !selection) {
@@ -1903,7 +1951,7 @@ const App = {
     if (rwEl) {
       if (selection === 'all' && tables.length > 1) {
         const totalRows = tables.reduce((acc, t) => acc + t.rows, 0);
-        rwEl.textContent = `${totalRows} (All)`;
+        rwEl.textContent = `${totalRows} (All ${tables.length} Tables)`;
       } else {
         rwEl.textContent = targetTable.rows;
       }
@@ -1911,14 +1959,27 @@ const App = {
     if (clEl) clEl.textContent = targetTable.columns;
 
     const wrapper = document.getElementById(isModal ? 'pdf-modal-preview-wrapper' : 'pdf-preview-table-wrapper');
-    const colCountEl = document.getElementById('pdf-preview-col-count');
-    if (colCountEl) colCountEl.textContent = `${targetTable.columns} columns`;
+    const colCountEl = document.getElementById(isModal ? 'pdf-modal-cols' : 'pdf-preview-col-count');
+    if (colCountEl && !isModal) {
+      if (selection === 'all' && !columnsMatch && tables.length > 1) {
+        colCountEl.textContent = `Showing Table 1 (${targetTable.columns} cols) • ${tables.length} tables total`;
+      } else {
+        colCountEl.textContent = `${targetTable.columns} columns`;
+      }
+    }
 
     if (wrapper) {
       const headers = targetTable.column_names || [];
       const rows = targetTable.preview || [];
 
-      let tableHtml = '<table class="pdf-inspect-table"><thead><tr>';
+      let tableHtml = '';
+      if (selection === 'all' && !columnsMatch && tables.length > 1) {
+        tableHtml += `<div style="font-size: 0.76rem; color: var(--amber); margin-bottom: 6px; padding: 4px 8px; background: rgba(245, 158, 11, 0.08); border-radius: 4px;">
+          Note: Previewing <strong>${this.escapeHtml(targetTable.name)}</strong>. Since tables have different column schemas, exporting "All Tables" will write each table onto its own individual worksheet in Excel.
+        </div>`;
+      }
+
+      tableHtml += '<table class="pdf-inspect-table"><thead><tr>';
       headers.forEach(h => {
         tableHtml += `<th>${this.escapeHtml(h)}</th>`;
       });

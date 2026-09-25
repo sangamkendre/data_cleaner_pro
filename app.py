@@ -30,6 +30,7 @@ from conversion import (
     inspect_pdf_tables,
     extract_pdf_tables_to_df,
     convert_pdf_to_export_file,
+    sanitize_excel_sheet_name,
 )
 from session_manager import session_manager
 
@@ -144,6 +145,33 @@ def upload_file():
         file_info["selected_sheet"] = meta.get("selected_sheet")
 
         session.set_dataset(df, file_info, file_path=file_path)
+
+        # Pre-populate all individual tables/sheets if returned in meta
+        tables_dict = meta.get("tables_data", {})
+        for sheet_name, sheet_df in tables_dict.items():
+            if sheet_name not in session.sheets_data:
+                sheet_info = get_file_info(sheet_df, file_path=file_path, filename=filename, file_type=meta.get("format", "PDF"))
+                sheet_info["sheets"] = meta.get("sheets", [])
+                sheet_info["selected_sheet"] = sheet_name
+                session.sheets_data[sheet_name] = {
+                    "current_df": sheet_df.copy(),
+                    "raw_df": sheet_df.copy(),
+                    "audit": {
+                        "duplicate_rows_removed": 0,
+                        "null_values_handled": 0,
+                        "whitespace_issues_fixed": 0,
+                        "name_values_cleaned": 0,
+                        "contact_values_cleaned": 0,
+                        "email_values_cleaned": 0,
+                        "date_values_converted": 0,
+                        "data_types_fixed": 0,
+                        "rows_before": len(sheet_df),
+                        "rows_after": len(sheet_df),
+                        "actions_history": [],
+                    },
+                    "history": [],
+                    "file_info": dict(sheet_info),
+                }
 
         return jsonify({
             "success": True,
@@ -805,8 +833,11 @@ def export_excel():
     if session.sheets and len(session.sheets) > 1:
         # Multi-sheet workbook export: write all sheets into the excel workbook
         session._sync_active_sheet()
+        seen_sheets = set()
         with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
-            for s in session.sheets:
+            for i, s in enumerate(session.sheets):
+                if s == "All Tables (Union / Disjointed)":
+                    continue
                 if s in session.sheets_data:
                     df_sheet = session.sheets_data[s]["current_df"]
                 else:
@@ -818,8 +849,7 @@ def export_excel():
                             continue
                     else:
                         continue
-                invalid_chars = set("[]:*?/\x5c")
-                clean_sheet_title = "".join(c for c in s if c not in invalid_chars)[:31].strip() or "Sheet"
+                clean_sheet_title = sanitize_excel_sheet_name(s, i, seen_sheets)
                 df_sheet.to_excel(writer, sheet_name=clean_sheet_title, index=False)
     else:
         session.current_df.to_excel(out_path, index=False, engine="openpyxl")
@@ -934,12 +964,39 @@ def load_pdf_to_cleaner_endpoint():
 
         session.set_dataset(df, file_info, file_path=file_path)
 
+        tables_dict = meta.get("tables_data", {})
+        for sheet_name, sheet_df in tables_dict.items():
+            if sheet_name not in session.sheets_data:
+                sheet_info = get_file_info(sheet_df, file_path=file_path, filename=filename, file_type="PDF")
+                sheet_info["sheets"] = meta.get("sheets", [])
+                sheet_info["selected_sheet"] = sheet_name
+                session.sheets_data[sheet_name] = {
+                    "current_df": sheet_df.copy(),
+                    "raw_df": sheet_df.copy(),
+                    "audit": {
+                        "duplicate_rows_removed": 0,
+                        "null_values_handled": 0,
+                        "whitespace_issues_fixed": 0,
+                        "name_values_cleaned": 0,
+                        "contact_values_cleaned": 0,
+                        "email_values_cleaned": 0,
+                        "date_values_converted": 0,
+                        "data_types_fixed": 0,
+                        "rows_before": len(sheet_df),
+                        "rows_after": len(sheet_df),
+                        "actions_history": [],
+                    },
+                    "history": [],
+                    "file_info": dict(sheet_info),
+                }
+
         return jsonify({
             "success": True,
             "session_id": session_id,
             "file_info": file_info,
             "sheets": file_info.get("sheets", []),
             "selected_sheet": file_info.get("selected_sheet"),
+            "sheets_overview": session.get_sheets_overview(),
         })
     except Exception as e:
         return jsonify({"error": f"Failed to load PDF into cleaner: {str(e)}"}), 500

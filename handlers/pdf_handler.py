@@ -30,7 +30,8 @@ class PDFHandler(BaseHandler):
             info = inspect_pdf_tables(file_path)
             tables = info.get("tables", [])
             sheet_names = [t["name"] for t in tables]
-            if len(sheet_names) > 1:
+            columns_match = info.get("columns_match", True)
+            if len(sheet_names) > 1 and columns_match:
                 sheet_names.insert(0, "All Tables (Combined)")
             return sheet_names
         except Exception:

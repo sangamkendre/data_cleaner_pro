@@ -10,6 +10,8 @@ from conversion.pdf_converter import (
     extract_pdf_tables_to_df,
     convert_pdf_to_export_file,
     table_to_dataframe,
+    sanitize_excel_sheet_name,
+    check_columns_match,
 )
 
 __all__ = [
@@ -20,5 +22,7 @@ __all__ = [
     "extract_pdf_tables_to_df",
     "convert_pdf_to_export_file",
     "table_to_dataframe",
+    "sanitize_excel_sheet_name",
+    "check_columns_match",
 ]
 
